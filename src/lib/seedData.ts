@@ -1,0 +1,305 @@
+import {
+  UserSessionProfile,
+  WarehouseDocument,
+  WarehouseItem,
+  WarehouseTransaction,
+} from '../types/warehouse';
+
+export const DEMO_USERS: Record<string, UserSessionProfile & { password: string }> = {
+  'budi.gudang@logivault.id': {
+    id: 'b901a4e2-7c11-4f89-9a10-000000000001',
+    email: 'budi.gudang@logivault.id',
+    full_name: 'Budi Santoso',
+    warehouse_zone: 'Hub Cikarang Blok A',
+    role: 'Kepala Gudang Regional',
+    password: 'password123',
+  },
+  'siti.logistik@logivault.id': {
+    id: 'c702b8f3-8d22-4e11-8b20-000000000002',
+    email: 'siti.logistik@logivault.id',
+    full_name: 'Siti Rahmawati',
+    warehouse_zone: 'Depo Surabaya Timur',
+    role: 'Supervisor Inventaris',
+    password: 'password123',
+  },
+};
+
+export function createInitialItems(): WarehouseItem[] {
+  const now = new Date().toISOString();
+  const userA = DEMO_USERS['budi.gudang@logivault.id'].id;
+  const userB = DEMO_USERS['siti.logistik@logivault.id'].id;
+
+  return [
+    // Data milik Akun A (Budi Santoso - Hub Cikarang)
+    {
+      id: 'item-a-101',
+      user_id: userA,
+      sku: 'WH-SCN-2208',
+      name: 'Zebra DS2208 2D Industrial Barcode Scanner',
+      category: 'Perangkat Otomasi',
+      rack_location: 'RAK-A01-01',
+      stock: 42,
+      min_stock: 15,
+      unit: 'Unit',
+      updated_at: now,
+      created_at: now,
+    },
+    {
+      id: 'item-a-102',
+      user_id: userA,
+      sku: 'WH-PKG-500M',
+      name: 'Stretch Film LLDPE Industrial 50cm x 500m',
+      category: 'Material Packaging',
+      rack_location: 'RAK-B02-04',
+      stock: 8,
+      min_stock: 20,
+      unit: 'Roll',
+      updated_at: now,
+      created_at: now,
+    },
+    {
+      id: 'item-a-103',
+      user_id: userA,
+      sku: 'WH-PLT-1210',
+      name: 'Heavy Duty HDPE Pallet 1200x1000mm Blue',
+      category: 'Material Handling',
+      rack_location: 'ZONA-FL-03',
+      stock: 65,
+      min_stock: 25,
+      unit: 'Pcs',
+      updated_at: now,
+      created_at: now,
+    },
+    {
+      id: 'item-a-104',
+      user_id: userA,
+      sku: 'WH-LBL-1015',
+      name: 'Thermal Shipping Label Roll 100x150mm (Isi 500)',
+      category: 'Material Packaging',
+      rack_location: 'RAK-B01-02',
+      stock: 0,
+      min_stock: 12,
+      unit: 'Roll',
+      updated_at: now,
+      created_at: now,
+    },
+    {
+      id: 'item-a-105',
+      user_id: userA,
+      sku: 'WH-APD-4020',
+      name: 'Helm Safety Proyek MSA V-Gard Putih + Chinstrap',
+      category: 'APD & K3',
+      rack_location: 'RAK-C03-01',
+      stock: 9,
+      min_stock: 10,
+      unit: 'Pcs',
+      updated_at: now,
+      created_at: now,
+    },
+    {
+      id: 'item-a-106',
+      user_id: userA,
+      sku: 'WH-HJK-3000',
+      name: 'Hand Pallet Hydraulic Krisbow 3 Ton',
+      category: 'Material Handling',
+      rack_location: 'ZONA-FL-01',
+      stock: 14,
+      min_stock: 5,
+      unit: 'Unit',
+      updated_at: now,
+      created_at: now,
+    },
+
+    // Data milik Akun B (Siti Rahmawati - Depo Surabaya) — Terisolasi via user_id
+    {
+      id: 'item-b-201',
+      user_id: userB,
+      sku: 'SBY-OIL-040',
+      name: 'Oli Hidrolik Forklift Shell Tellus S2M 46 (20L)',
+      category: 'Suku Cadang',
+      rack_location: 'SBY-R01-01',
+      stock: 34,
+      min_stock: 10,
+      unit: 'Pail',
+      updated_at: now,
+      created_at: now,
+    },
+    {
+      id: 'item-b-202',
+      user_id: userB,
+      sku: 'SBY-BOX-6040',
+      name: 'Karton Box Double Wall 60x40x40cm Ekspor',
+      category: 'Material Packaging',
+      rack_location: 'SBY-R04-02',
+      stock: 12,
+      min_stock: 50,
+      unit: 'Lembar',
+      updated_at: now,
+      created_at: now,
+    },
+  ];
+}
+
+export function createInitialTransactions(): WarehouseTransaction[] {
+  const now = new Date();
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+  const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString();
+  const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString();
+  const fourHoursAgo = new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString();
+  const yesterday = new Date(now.getTime() - 26 * 60 * 60 * 1000).toISOString();
+
+  const userA = DEMO_USERS['budi.gudang@logivault.id'].id;
+  const userB = DEMO_USERS['siti.logistik@logivault.id'].id;
+
+  return [
+    {
+      id: 'tx-a-905',
+      user_id: userA,
+      item_id: 'item-a-101',
+      sku: 'WH-SCN-2208',
+      item_name: 'Zebra DS2208 2D Industrial Barcode Scanner',
+      type: 'INBOUND',
+      quantity: 12,
+      stock_before: 30,
+      stock_after: 42,
+      reference_no: 'PO-CKR-2026-118',
+      partner_name: 'PT Datascrip Solusi Otomasi',
+      notes: 'Penerimaan batch kuartal IV lengkap dengan kartu garansi',
+      created_at: oneHourAgo,
+    },
+    {
+      id: 'tx-a-904',
+      user_id: userA,
+      item_id: 'item-a-102',
+      sku: 'WH-PKG-500M',
+      item_name: 'Stretch Film LLDPE Industrial 50cm x 500m',
+      type: 'OUTBOUND',
+      quantity: 14,
+      stock_before: 22,
+      stock_after: 8,
+      reference_no: 'DO-CKR-2026-402',
+      partner_name: 'Divisi Packing Outbound Line 3',
+      notes: 'Pengambilan rutin shift pagi untuk wrapping palet ekspor',
+      created_at: twoHoursAgo,
+    },
+    {
+      id: 'tx-a-903',
+      user_id: userA,
+      item_id: 'item-a-104',
+      sku: 'WH-LBL-1015',
+      item_name: 'Thermal Shipping Label Roll 100x150mm (Isi 500)',
+      type: 'OUTBOUND',
+      quantity: 10,
+      stock_before: 10,
+      stock_after: 0,
+      reference_no: 'DO-CKR-2026-399',
+      partner_name: 'Stasiun Cetak Resi Ekspedisi',
+      notes: 'Stok habis setelah pengeluaran ini, segera proses PO baru',
+      created_at: threeHoursAgo,
+    },
+    {
+      id: 'tx-a-902',
+      user_id: userA,
+      item_id: 'item-a-103',
+      sku: 'WH-PLT-1210',
+      item_name: 'Heavy Duty HDPE Pallet 1200x1000mm Blue',
+      type: 'INBOUND',
+      quantity: 20,
+      stock_before: 45,
+      stock_after: 65,
+      reference_no: 'PO-CKR-2026-112',
+      partner_name: 'PT Multi Polimer Nusantara',
+      notes: 'Inspeksi QC lulus 100%',
+      created_at: fourHoursAgo,
+    },
+    {
+      id: 'tx-a-901',
+      user_id: userA,
+      item_id: 'item-a-105',
+      sku: 'WH-APD-4020',
+      item_name: 'Helm Safety Proyek MSA V-Gard Putih + Chinstrap',
+      type: 'OUTBOUND',
+      quantity: 6,
+      stock_before: 15,
+      stock_after: 9,
+      reference_no: 'DO-CKR-2026-380',
+      partner_name: 'Tim Inspeksi K3 Gudang Baru',
+      notes: 'Distribusi perlengkapan tim auditor',
+      created_at: yesterday,
+    },
+    // Transaksi milik Akun B
+    {
+      id: 'tx-b-801',
+      user_id: userB,
+      item_id: 'item-b-201',
+      sku: 'SBY-OIL-040',
+      item_name: 'Oli Hidrolik Forklift Shell Tellus S2M 46 (20L)',
+      type: 'INBOUND',
+      quantity: 14,
+      stock_before: 20,
+      stock_after: 34,
+      reference_no: 'PO-SBY-2026-019',
+      partner_name: 'PT Energi Pelumas Jawa Timur',
+      notes: 'Stok cadangan perawatan forklift bulanan',
+      created_at: oneHourAgo,
+    },
+  ];
+}
+
+export function createInitialDocuments(): WarehouseDocument[] {
+  const now = new Date();
+  const userA = DEMO_USERS['budi.gudang@logivault.id'].id;
+  const userB = DEMO_USERS['siti.logistik@logivault.id'].id;
+
+  return [
+    {
+      id: 'doc-a-01',
+      user_id: userA,
+      title: 'Surat Jalan Pengiriman Zebra DS2208 Batch IV',
+      category: 'Surat Jalan',
+      notes: 'Ditandatangani oleh Kepala Shift Pagi (Bpk. Hendra) — 12 Unit lengkap.',
+      file_name: 'SJ_PO_CKR_2026_118.pdf',
+      file_path: `${userA}/1763350000000_SJ_PO_CKR_2026_118.pdf`,
+      file_size: 428500,
+      mime_type: 'application/pdf',
+      created_at: new Date(now.getTime() - 2 * 3600 * 1000).toISOString(),
+    },
+    {
+      id: 'doc-a-02',
+      user_id: userA,
+      title: 'Invoice Pembelian Heavy Duty HDPE Pallet 20 Pcs',
+      category: 'Invoice',
+      notes: 'Termin pembayaran Net 30 Hari ke PT Multi Polimer Nusantara.',
+      file_name: 'INV_MPN_2026_8841.pdf',
+      file_path: `${userA}/1763340000000_INV_MPN_2026_8841.pdf`,
+      file_size: 615200,
+      mime_type: 'application/pdf',
+      created_at: new Date(now.getTime() - 6 * 3600 * 1000).toISOString(),
+    },
+    {
+      id: 'doc-a-03',
+      user_id: userA,
+      title: 'Berita Acara Stock Opname Gudang Cikarang Blok A',
+      category: 'Berita Acara',
+      notes: 'Hasil rekonsiliasi fisik 100% sesuai dengan buku besar inventaris.',
+      file_name: 'BA_SO_Cikarang_Nov2026.xlsx',
+      file_path: `${userA}/1763290000000_BA_SO_Cikarang_Nov2026.xlsx`,
+      file_size: 289400,
+      mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      created_at: new Date(now.getTime() - 24 * 3600 * 1000).toISOString(),
+    },
+    // Dokumen milik Akun B (Terisolasi)
+    {
+      id: 'doc-b-01',
+      user_id: userB,
+      title: 'Surat Jalan Oli Hidrolik Depo Surabaya',
+      category: 'Surat Jalan',
+      notes: 'Arsip internal Depo Surabaya Timur.',
+      file_name: 'SJ_SBY_Oli_019.pdf',
+      file_path: `${userB}/1763350000000_SJ_SBY_Oli_019.pdf`,
+      file_size: 312000,
+      mime_type: 'application/pdf',
+      created_at: new Date(now.getTime() - 3 * 3600 * 1000).toISOString(),
+    },
+  ];
+}

@@ -1,0 +1,6 @@
+{
+  "name": "LogiVault Warehouse Admin",
+  "description": "Aplikasi operasional Admin Warehouse enterprise berbasis React (Vite), Tailwind CSS, dan Supabase dengan isolasi data RLS per akun, manajemen inventaris SKU, transaksi inbound/outbound, dan Cloud File Vault.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

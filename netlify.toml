@@ -1,0 +1,13 @@
+# netlify.toml — Konfigurasi Deployment Static SPA (Vite + React)
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Aturan Redirect SPA wajib agar React Router tidak mengalami error 404 saat halaman di-refresh
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
