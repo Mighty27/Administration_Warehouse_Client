@@ -39,31 +39,31 @@ export const Register: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center py-10 px-4 sm:px-6 lg:px-8 transition-colors duration-150">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex items-center justify-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-xs">
             <Warehouse className="w-5 h-5" />
           </div>
-          <span className="text-xl font-bold tracking-tight text-slate-900">
+          <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             LogiVault
           </span>
         </div>
-        <h1 className="mt-5 text-center text-2xl font-bold tracking-tight text-slate-900 text-balance">
+        <h1 className="mt-5 text-center text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 text-balance">
           Registrasi Akun Admin Warehouse
         </h1>
-        <p className="mt-1.5 text-center text-sm text-slate-600">
+        <p className="mt-1.5 text-center text-sm text-slate-600 dark:text-slate-400">
           Setiap akun baru mendapatkan ruang penyimpanan database dan folder dokumen yang terisolasi
         </p>
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-7 px-6 border border-slate-200 rounded-xl shadow-xs sm:px-8">
+        <div className="bg-white dark:bg-slate-900 py-7 px-6 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs sm:px-8">
           <form className="space-y-4" onSubmit={handleSubmit} noValidate>
             {errorMsg && (
               <div
                 role="alert"
-                className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-xs font-medium text-rose-700"
+                className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-900 text-xs font-medium text-rose-700 dark:text-rose-300"
               >
                 {errorMsg}
               </div>
@@ -72,7 +72,7 @@ export const Register: React.FC = () => {
             <div>
               <label
                 htmlFor="reg-fullname"
-                className="block text-xs font-semibold text-slate-700 mb-1.5"
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
               >
                 Nama Lengkap Penanggung Jawab
               </label>
@@ -85,7 +85,7 @@ export const Register: React.FC = () => {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="Contoh: Hendra Wijaya"
-                  className="w-full pl-10 pr-3.5 py-2.5 text-sm bg-white border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                  className="w-full pl-10 pr-3.5 py-2.5 text-sm bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600"
                 />
               </div>
             </div>
@@ -93,7 +93,7 @@ export const Register: React.FC = () => {
             <div>
               <label
                 htmlFor="reg-zone"
-                className="block text-xs font-semibold text-slate-700 mb-1.5"
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
               >
                 Nama Lokasi / Cabang Gudang
               </label>
@@ -106,7 +106,7 @@ export const Register: React.FC = () => {
                   value={warehouseZone}
                   onChange={(e) => setWarehouseZone(e.target.value)}
                   placeholder="Contoh: Gudang Distribusi Semarang"
-                  className="w-full pl-10 pr-3.5 py-2.5 text-sm bg-white border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                  className="w-full pl-10 pr-3.5 py-2.5 text-sm bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600"
                 />
               </div>
             </div>
@@ -114,7 +114,7 @@ export const Register: React.FC = () => {
             <div>
               <label
                 htmlFor="reg-email"
-                className="block text-xs font-semibold text-slate-700 mb-1.5"
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
               >
                 Email Kerja
               </label>
@@ -127,7 +127,7 @@ export const Register: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="hendra@perusahaan.co.id"
-                  className="w-full pl-10 pr-3.5 py-2.5 text-sm bg-white border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                  className="w-full pl-10 pr-3.5 py-2.5 text-sm bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600"
                 />
               </div>
             </div>
@@ -135,7 +135,7 @@ export const Register: React.FC = () => {
             <div>
               <label
                 htmlFor="reg-password"
-                className="block text-xs font-semibold text-slate-700 mb-1.5"
+                className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
               >
                 Kata Sandi Baru
               </label>
@@ -148,7 +148,7 @@ export const Register: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Minimal 6 karakter"
-                  className="w-full pl-10 pr-3.5 py-2.5 text-sm bg-white border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                  className="w-full pl-10 pr-3.5 py-2.5 text-sm bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600"
                 />
               </div>
             </div>
@@ -163,11 +163,11 @@ export const Register: React.FC = () => {
             </button>
           </form>
 
-          <div className="mt-6 pt-4 border-t border-slate-200 flex items-center justify-between text-xs">
-            <span className="text-slate-600">Sudah memiliki akun?</span>
+          <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+            <span className="text-slate-600 dark:text-slate-400">Sudah memiliki akun?</span>
             <Link
               to="/login"
-              className="font-semibold text-indigo-600 hover:text-indigo-700"
+              className="font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
             >
               Masuk di Sini
             </Link>

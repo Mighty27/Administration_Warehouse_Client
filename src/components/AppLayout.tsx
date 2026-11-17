@@ -1,21 +1,20 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowLeftRight,
   Boxes,
-  Code2,
   FolderLock,
   LayoutDashboard,
   LogOut,
-  RotateCcw,
+  Moon,
   ShieldCheck,
-  Users,
+  Sun,
   Warehouse,
 } from 'lucide-react';
 import { useWarehouse } from '../context/WarehouseContext';
 import { ToastContainer } from './ToastContainer';
-import { BlueprintModal } from './BlueprintModal';
-import { DEMO_USERS } from '../lib/seedData';
+
+const THEME_STORAGE_KEY = 'logivault_theme';
 
 const NAV_ITEMS = [
   {
@@ -49,10 +48,42 @@ const NAV_ITEMS = [
 ];
 
 export const AppLayout: React.FC = () => {
-  const { user, logout, loginDemoAccount, resetDemoData, isCloudConnected } = useWarehouse();
-  const [isBlueprintOpen, setIsBlueprintOpen] = useState(false);
+  const { user, logout } = useWarehouse();
   const location = useLocation();
   const navigate = useNavigate();
+
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+      if (saved === 'dark') return true;
+      if (saved === 'light') return false;
+    } catch {
+      // Abaikan jika localStorage tidak tersedia
+    }
+    return document.documentElement.classList.contains('dark');
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isDarkMode) {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    try {
+      window.localStorage.setItem(
+        THEME_STORAGE_KEY,
+        isDarkMode ? 'dark' : 'light'
+      );
+    } catch {
+      // Abaikan error penyimpanan lokal
+    }
+  }, [isDarkMode]);
+
+  const toggleDarkMode = () => {
+    setIsDarkMode((prev) => !prev);
+  };
 
   const currentRouteTitle = (() => {
     if (location.pathname === '/') return 'Dashboard Ringkasan';
@@ -67,35 +98,30 @@ export const AppLayout: React.FC = () => {
     navigate('/login');
   };
 
-  const otherDemoAccount =
-    user?.email === 'budi.gudang@logivault.id'
-      ? DEMO_USERS['siti.logistik@logivault.id']
-      : DEMO_USERS['budi.gudang@logivault.id'];
-
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col md:flex-row">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col md:flex-row transition-colors duration-150">
       {/* Sidebar Desktop (md:flex) */}
-      <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 bg-white border-r border-slate-200 z-30">
-        <div className="h-16 px-6 flex items-center gap-3 border-b border-slate-200">
+      <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-30 transition-colors duration-150">
+        <div className="h-16 px-6 flex items-center gap-3 border-b border-slate-200 dark:border-slate-800">
           <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shrink-0">
             <Warehouse className="w-4 h-4" />
           </div>
-          <span className="text-base font-bold tracking-tight text-slate-900 whitespace-nowrap">
+          <span className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100 whitespace-nowrap">
             LogiVault
           </span>
         </div>
 
         {/* Info Akun & Isolasi RLS */}
         {user && (
-          <div className="px-5 py-4 border-b border-slate-200 bg-slate-50/60">
-            <div className="text-xs font-semibold text-slate-900 truncate">
+          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40">
+            <div className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
               {user.full_name}
             </div>
-            <div className="text-xs text-slate-500 truncate mt-0.5">
+            <div className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
               {user.warehouse_zone} · {user.role}
             </div>
-            <div className="mt-2 flex items-center gap-1.5 text-[11px] font-mono text-slate-500 truncate">
-              <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+            <div className="mt-2 flex items-center gap-1.5 text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">
+              <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
               <span className="truncate" title={user.id}>
                 UID: {user.id.slice(0, 13)}...
               </span>
@@ -115,8 +141,8 @@ export const AppLayout: React.FC = () => {
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${
                     isActive
-                      ? 'bg-indigo-50 text-indigo-600 font-semibold'
-                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
                   }`
                 }
               >
@@ -127,73 +153,83 @@ export const AppLayout: React.FC = () => {
           })}
         </nav>
 
-        {/* Panel Uji Isolasi Multi-Akun & Dokumentasi SQL/Netlify */}
-        <div className="p-3 border-t border-slate-200 space-y-1.5">
-          {!isCloudConnected && otherDemoAccount && (
-            <button
-              type="button"
-              onClick={() => loginDemoAccount(otherDemoAccount.email)}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors text-left"
-              title="Uji isolasi data RLS dengan beralih ke akun gudang lain"
-            >
-              <Users className="w-4 h-4 text-indigo-600 shrink-0" />
-              <span className="truncate">
-                Uji Akun: {otherDemoAccount.full_name.split(' ')[0]}
-              </span>
-            </button>
-          )}
+        {/* Footer Sidebar */}
+        <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-2">
+          <button
+            type="button"
+            onClick={toggleDarkMode}
+            aria-label={isDarkMode ? 'Aktifkan Mode Terang' : 'Aktifkan Mode Gelap'}
+            aria-pressed={isDarkMode}
+            className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg transition-colors cursor-pointer"
+          >
+            <span className="inline-flex items-center gap-2">
+              {isDarkMode ? (
+                <Sun className="w-3.5 h-3.5 text-amber-400" />
+              ) : (
+                <Moon className="w-3.5 h-3.5 text-slate-500" />
+              )}
+              <span>{isDarkMode ? 'Mode Terang' : 'Mode Gelap'}</span>
+            </span>
+            <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500">
+              {isDarkMode ? 'DARK' : 'LIGHT'}
+            </span>
+          </button>
 
           <button
             type="button"
-            onClick={() => setIsBlueprintOpen(true)}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors text-left"
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg transition-colors cursor-pointer"
           >
-            <Code2 className="w-4 h-4 text-slate-500 shrink-0" />
-            <span className="truncate">SQL RLS & Config Netlify</span>
+            <LogOut className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+            <span>Keluar Sesi</span>
           </button>
-
-          {!isCloudConnected && (
-            <button
-              type="button"
-              onClick={resetDemoData}
-              className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors text-left"
-            >
-              <RotateCcw className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">Reset Data Simulasi</span>
-            </button>
-          )}
         </div>
       </aside>
 
       {/* Konten Utama */}
       <div className="flex-1 md:pl-64 flex flex-col min-h-screen pb-16 md:pb-0">
-        {/* Top Bar Contract: Breadcrumb di kiri, 1-2 aksi utama di kanan */}
-        <header className="h-16 bg-white border-b border-slate-200 px-4 md:px-8 flex items-center justify-between gap-4 sticky top-0 z-20">
+        {/* Top Bar: Breadcrumb di kiri, Toggle Tema & Keluar di kanan */}
+        <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 flex items-center justify-between gap-4 sticky top-0 z-20 transition-colors duration-150">
           <div className="flex items-center gap-2 text-sm min-w-0">
-            <span className="font-semibold text-slate-500 hidden sm:inline whitespace-nowrap">
+            <span className="font-semibold text-slate-500 dark:text-slate-400 hidden sm:inline whitespace-nowrap">
               {user?.warehouse_zone || 'Warehouse'}
             </span>
-            <span className="text-slate-300 hidden sm:inline" aria-hidden="true">
+            <span className="text-slate-300 dark:text-slate-700 hidden sm:inline" aria-hidden="true">
               /
             </span>
-            <h1 className="font-bold text-slate-900 truncate">{currentRouteTitle}</h1>
+            <h1 className="font-bold text-slate-900 dark:text-slate-100 truncate">
+              {currentRouteTitle}
+            </h1>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-2.5 shrink-0">
             <button
               type="button"
-              onClick={() => setIsBlueprintOpen(true)}
-              className="md:hidden px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0"
+              onClick={toggleDarkMode}
+              aria-label={isDarkMode ? 'Beralih ke Mode Terang' : 'Beralih ke Mode Gelap'}
+              aria-pressed={isDarkMode}
+              title={isDarkMode ? 'Beralih ke Mode Terang' : 'Beralih ke Mode Gelap'}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
-              SQL & Netlify
+              {isDarkMode ? (
+                <>
+                  <Sun className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="hidden sm:inline">Mode Terang</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
+                  <span className="hidden sm:inline">Mode Gelap</span>
+                </>
+              )}
             </button>
 
             <button
               type="button"
               onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition-colors whitespace-nowrap shrink-0"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <LogOut className="w-3.5 h-3.5 text-slate-500" />
+              <LogOut className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
               <span>Keluar</span>
             </button>
           </div>
@@ -208,7 +244,7 @@ export const AppLayout: React.FC = () => {
       {/* Bottom Navigation Bar Mobile (md:hidden) — Tinggi <= 15% viewport */}
       <nav
         aria-label="Navigasi Mobile"
-        className="md:hidden fixed bottom-0 inset-x-0 h-14 bg-white border-t border-slate-200 z-30 grid grid-cols-4"
+        className="md:hidden fixed bottom-0 inset-x-0 h-14 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 z-30 grid grid-cols-4 transition-colors duration-150"
       >
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
@@ -220,8 +256,8 @@ export const AppLayout: React.FC = () => {
               className={({ isActive }) =>
                 `flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors ${
                   isActive
-                    ? 'text-indigo-600 font-semibold'
-                    : 'text-slate-500 hover:text-slate-900'
+                    ? 'text-indigo-600 dark:text-indigo-400 font-semibold'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
                 }`
               }
             >
@@ -232,11 +268,8 @@ export const AppLayout: React.FC = () => {
         })}
       </nav>
 
-      <BlueprintModal
-        isOpen={isBlueprintOpen}
-        onClose={() => setIsBlueprintOpen(false)}
-      />
       <ToastContainer />
     </div>
   );
 };
+

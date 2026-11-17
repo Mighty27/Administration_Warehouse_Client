@@ -343,3 +343,191 @@ export function filterUserDocuments(
       );
     });
 }
+
+export interface DailyMovementPoint {
+  dateKey: string; // YYYY-MM-DD
+  label: string; // contoh: "17 Nov"
+  shortDay: string; // contoh: "Sel"
+  inbound: number;
+  outbound: number;
+  net: number;
+  transactionsCount: number;
+}
+
+/**
+ * Menghitung tren pergerakan barang harian (Inbound vs Outbound) selama N hari terakhir
+ * khusus untuk user_id yang sedang aktif.
+ */
+export function calculateMovementTrend(
+  transactions: WarehouseTransaction[],
+  userId: string,
+  daysCount: number = 7,
+  referenceDate: Date = new Date()
+): {
+  points: DailyMovementPoint[];
+  totalInbound: number;
+  totalOutbound: number;
+  netFlow: number;
+  maxDailyVolume: number;
+} {
+  const safeDays = Math.max(1, Math.min(30, daysCount));
+  const userTx = transactions.filter((tx) => tx.user_id === userId);
+
+  const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+  const monthNames = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'Mei',
+    'Jun',
+    'Jul',
+    'Agu',
+    'Sep',
+    'Okt',
+    'Nov',
+    'Des',
+  ];
+
+  const toLocalDateKey = (d: Date): string => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const buckets = new Map<string, DailyMovementPoint>();
+  const points: DailyMovementPoint[] = [];
+
+  for (let i = safeDays - 1; i >= 0; i--) {
+    const d = new Date(referenceDate);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - i);
+    const key = toLocalDateKey(d);
+    const point: DailyMovementPoint = {
+      dateKey: key,
+      label: `${String(d.getDate()).padStart(2, '0')} ${monthNames[d.getMonth()]}`,
+      shortDay: dayNames[d.getDay()],
+      inbound: 0,
+      outbound: 0,
+      net: 0,
+      transactionsCount: 0,
+    };
+    buckets.set(key, point);
+    points.push(point);
+  }
+
+  for (const tx of userTx) {
+    const txDate = new Date(tx.created_at);
+    const key = toLocalDateKey(txDate);
+    const bucket = buckets.get(key);
+    if (bucket) {
+      if (tx.type === 'INBOUND') {
+        bucket.inbound += tx.quantity;
+      } else {
+        bucket.outbound += tx.quantity;
+      }
+      bucket.net = bucket.inbound - bucket.outbound;
+      bucket.transactionsCount += 1;
+    }
+  }
+
+  const totalInbound = points.reduce((sum, p) => sum + p.inbound, 0);
+  const totalOutbound = points.reduce((sum, p) => sum + p.outbound, 0);
+  const netFlow = totalInbound - totalOutbound;
+  const maxDailyVolume = Math.max(
+    10,
+    ...points.map((p) => Math.max(p.inbound, p.outbound))
+  );
+
+  return {
+    points,
+    totalInbound,
+    totalOutbound,
+    netFlow,
+    maxDailyVolume,
+  };
+}
+
+export interface CategoryStockPoint {
+  category: string;
+  skuCount: number;
+  totalUnits: number;
+  percentage: number;
+}
+
+/**
+ * Menghitung distribusi unit stok dan jumlah SKU berdasarkan kategori barang milik user_id aktif.
+ */
+export function calculateCategoryDistribution(
+  items: WarehouseItem[],
+  userId: string
+): CategoryStockPoint[] {
+  const userItems = items.filter((item) => item.user_id === userId);
+  const totalUnitsAll = userItems.reduce((sum, i) => sum + Math.max(0, i.stock), 0);
+
+  const map = new Map<string, { skuCount: number; totalUnits: number }>();
+
+  for (const item of userItems) {
+    const cat = item.category || 'Lainnya';
+    const current = map.get(cat) || { skuCount: 0, totalUnits: 0 };
+    current.skuCount += 1;
+    current.totalUnits += Math.max(0, item.stock);
+    map.set(cat, current);
+  }
+
+  const result: CategoryStockPoint[] = Array.from(map.entries()).map(
+    ([category, val]) => ({
+      category,
+      skuCount: val.skuCount,
+      totalUnits: val.totalUnits,
+      percentage:
+        totalUnitsAll > 0
+          ? Math.round((val.totalUnits / totalUnitsAll) * 1000) / 10
+          : 0,
+    })
+  );
+
+  return result.sort((a, b) => b.totalUnits - a.totalUnits || b.skuCount - a.skuCount);
+}
+
+export interface StockHealthSummary {
+  amanCount: number;
+  menipisCount: number;
+  habisCount: number;
+  amanPct: number;
+  menipisPct: number;
+  habisPct: number;
+}
+
+/**
+ * Menghitung proporsi kesehatan SKU (Aman, Menipis, Habis) untuk grafik ringkasan
+ */
+export function calculateStockHealthSummary(
+  items: WarehouseItem[],
+  userId: string
+): StockHealthSummary {
+  const userItems = items.filter((item) => item.user_id === userId);
+  const total = userItems.length;
+
+  let amanCount = 0;
+  let menipisCount = 0;
+  let habisCount = 0;
+
+  for (const item of userItems) {
+    const status = getStockStatus(item.stock, item.min_stock);
+    if (status === 'AMAN') amanCount++;
+    else if (status === 'MENIPIS') menipisCount++;
+    else habisCount++;
+  }
+
+  return {
+    amanCount,
+    menipisCount,
+    habisCount,
+    amanPct: total > 0 ? Math.round((amanCount / total) * 100) : 0,
+    menipisPct: total > 0 ? Math.round((menipisCount / total) * 100) : 0,
+    habisPct: total > 0 ? Math.round((habisCount / total) * 100) : 0,
+  };
+}
+

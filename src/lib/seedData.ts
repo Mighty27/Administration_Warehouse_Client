@@ -142,11 +142,9 @@ export function createInitialItems(): WarehouseItem[] {
 
 export function createInitialTransactions(): WarehouseTransaction[] {
   const now = new Date();
-  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
-  const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString();
-  const threeHoursAgo = new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString();
-  const fourHoursAgo = new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString();
-  const yesterday = new Date(now.getTime() - 26 * 60 * 60 * 1000).toISOString();
+  const hoursAgo = (h: number) => new Date(now.getTime() - h * 60 * 60 * 1000).toISOString();
+  const daysAgo = (d: number) =>
+    new Date(now.getTime() - d * 24 * 60 * 60 * 1000).toISOString();
 
   const userA = DEMO_USERS['budi.gudang@logivault.id'].id;
   const userB = DEMO_USERS['siti.logistik@logivault.id'].id;
@@ -165,7 +163,7 @@ export function createInitialTransactions(): WarehouseTransaction[] {
       reference_no: 'PO-CKR-2026-118',
       partner_name: 'PT Datascrip Solusi Otomasi',
       notes: 'Penerimaan batch kuartal IV lengkap dengan kartu garansi',
-      created_at: oneHourAgo,
+      created_at: hoursAgo(1),
     },
     {
       id: 'tx-a-904',
@@ -180,7 +178,7 @@ export function createInitialTransactions(): WarehouseTransaction[] {
       reference_no: 'DO-CKR-2026-402',
       partner_name: 'Divisi Packing Outbound Line 3',
       notes: 'Pengambilan rutin shift pagi untuk wrapping palet ekspor',
-      created_at: twoHoursAgo,
+      created_at: hoursAgo(2),
     },
     {
       id: 'tx-a-903',
@@ -195,7 +193,7 @@ export function createInitialTransactions(): WarehouseTransaction[] {
       reference_no: 'DO-CKR-2026-399',
       partner_name: 'Stasiun Cetak Resi Ekspedisi',
       notes: 'Stok habis setelah pengeluaran ini, segera proses PO baru',
-      created_at: threeHoursAgo,
+      created_at: hoursAgo(3),
     },
     {
       id: 'tx-a-902',
@@ -210,7 +208,7 @@ export function createInitialTransactions(): WarehouseTransaction[] {
       reference_no: 'PO-CKR-2026-112',
       partner_name: 'PT Multi Polimer Nusantara',
       notes: 'Inspeksi QC lulus 100%',
-      created_at: fourHoursAgo,
+      created_at: hoursAgo(4),
     },
     {
       id: 'tx-a-901',
@@ -225,7 +223,97 @@ export function createInitialTransactions(): WarehouseTransaction[] {
       reference_no: 'DO-CKR-2026-380',
       partner_name: 'Tim Inspeksi K3 Gudang Baru',
       notes: 'Distribusi perlengkapan tim auditor',
-      created_at: yesterday,
+      created_at: daysAgo(1),
+    },
+    {
+      id: 'tx-a-900',
+      user_id: userA,
+      item_id: 'item-a-102',
+      sku: 'WH-PKG-500M',
+      item_name: 'Stretch Film LLDPE Industrial 50cm x 500m',
+      type: 'INBOUND',
+      quantity: 18,
+      stock_before: 4,
+      stock_after: 22,
+      reference_no: 'PO-CKR-2026-105',
+      partner_name: 'PT Kemasan Prima Jaya',
+      notes: 'Pengisian ulang gudang blok B',
+      created_at: daysAgo(1),
+    },
+    {
+      id: 'tx-a-899',
+      user_id: userA,
+      item_id: 'item-a-103',
+      sku: 'WH-PLT-1210',
+      item_name: 'Heavy Duty HDPE Pallet 1200x1000mm Blue',
+      type: 'OUTBOUND',
+      quantity: 15,
+      stock_before: 60,
+      stock_after: 45,
+      reference_no: 'DO-CKR-2026-365',
+      partner_name: 'Area Staging Kargo Domestik',
+      notes: 'Alokasi palet pengiriman mingguan',
+      created_at: daysAgo(2),
+    },
+    {
+      id: 'tx-a-898',
+      user_id: userA,
+      item_id: 'item-a-101',
+      sku: 'WH-SCN-2208',
+      item_name: 'Zebra DS2208 2D Industrial Barcode Scanner',
+      type: 'INBOUND',
+      quantity: 10,
+      stock_before: 20,
+      stock_after: 30,
+      reference_no: 'PO-CKR-2026-098',
+      partner_name: 'PT Datascrip Solusi Otomasi',
+      notes: 'Unit scanner tambahan loket sortir',
+      created_at: daysAgo(3),
+    },
+    {
+      id: 'tx-a-897',
+      user_id: userA,
+      item_id: 'item-a-106',
+      sku: 'WH-HJK-3000',
+      item_name: 'Hand Pallet Hydraulic Krisbow 3 Ton',
+      type: 'INBOUND',
+      quantity: 8,
+      stock_before: 6,
+      stock_after: 14,
+      reference_no: 'PO-CKR-2026-091',
+      partner_name: 'PT Kawan Lama Sejahtera',
+      notes: 'Penambahan armada angkut lorong A-C',
+      created_at: daysAgo(4),
+    },
+    {
+      id: 'tx-a-896',
+      user_id: userA,
+      item_id: 'item-a-104',
+      sku: 'WH-LBL-1015',
+      item_name: 'Thermal Shipping Label Roll 100x150mm (Isi 500)',
+      type: 'OUTBOUND',
+      quantity: 12,
+      stock_before: 22,
+      stock_after: 10,
+      reference_no: 'DO-CKR-2026-340',
+      partner_name: 'Stasiun Cetak Resi Ekspedisi',
+      notes: 'Pemakaian label reguler',
+      created_at: daysAgo(5),
+    },
+    {
+      id: 'tx-a-895',
+      user_id: userA,
+      item_id: 'item-a-103',
+      sku: 'WH-PLT-1210',
+      item_name: 'Heavy Duty HDPE Pallet 1200x1000mm Blue',
+      type: 'INBOUND',
+      quantity: 25,
+      stock_before: 35,
+      stock_after: 60,
+      reference_no: 'PO-CKR-2026-082',
+      partner_name: 'PT Multi Polimer Nusantara',
+      notes: 'Batch awal bulan',
+      created_at: daysAgo(6),
     },
     // Transaksi milik Akun B
     {
@@ -241,7 +329,7 @@ export function createInitialTransactions(): WarehouseTransaction[] {
       reference_no: 'PO-SBY-2026-019',
       partner_name: 'PT Energi Pelumas Jawa Timur',
       notes: 'Stok cadangan perawatan forklift bulanan',
-      created_at: oneHourAgo,
+      created_at: hoursAgo(1),
     },
   ];
 }

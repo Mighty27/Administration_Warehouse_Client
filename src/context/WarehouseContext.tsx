@@ -192,6 +192,8 @@ export const WarehouseProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   useEffect(() => {
     const initSession = async () => {
       setAuthLoading(true);
+      const searchParams = new URLSearchParams(window.location.search);
+      const autostart = searchParams.get('autostart') === '1';
 
       if (isSupabaseConfigured && supabase) {
         const { data } = await supabase.auth.getSession();
@@ -210,16 +212,18 @@ export const WarehouseProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           };
           setUser(profile);
           await fetchSupabaseDataForUser(profile.id);
+          setAuthLoading(false);
+          return;
         }
-        setAuthLoading(false);
-        return;
+        if (!autostart) {
+          setAuthLoading(false);
+          return;
+        }
       }
 
-      // Mode SPA Client-Side dengan simulasi RLS per akun
+      // Mode SPA Client-Side / Preview Autostart dengan isolasi RLS per akun
       loadLocalDatabase();
       const savedSession = localStorage.getItem(STORAGE_KEYS.SESSION);
-      const searchParams = new URLSearchParams(window.location.search);
-      const autostart = searchParams.get('autostart') === '1';
 
       if (savedSession) {
         try {

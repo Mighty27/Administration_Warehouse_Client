@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildUserStoragePath,
+  calculateCategoryDistribution,
   calculateDashboardMetrics,
+  calculateMovementTrend,
+  calculateStockHealthSummary,
   canUserAccessStoragePath,
   filterInventoryItems,
   generateTransactionsCsv,
@@ -209,3 +212,71 @@ test('filterInventoryItems dan generateTransactionsCsv berfungsi akurat', () => 
   assert.match(csv, /ID Transaksi,Waktu Transaksi,No Referensi/);
   assert.match(csv, /"Scanner, Industrial"/);
 });
+
+test('calculateMovementTrend, calculateCategoryDistribution, dan calculateStockHealthSummary mengagregasi data grafik per user_id', () => {
+  const refDate = new Date('2026-11-17T12:00:00.000Z');
+  const txs: WarehouseTransaction[] = [
+    {
+      id: 'tx-c1',
+      user_id: 'user-a',
+      item_id: 'item-1',
+      sku: 'WH-ELC-001',
+      item_name: 'Scanner',
+      type: 'INBOUND',
+      quantity: 20,
+      stock_before: 5,
+      stock_after: 25,
+      reference_no: 'PO-01',
+      partner_name: 'Vendor',
+      notes: '',
+      created_at: '2026-11-17T08:00:00.000Z',
+    },
+    {
+      id: 'tx-c2',
+      user_id: 'user-a',
+      item_id: 'item-2',
+      sku: 'WH-PKG-002',
+      item_name: 'Stretch Film',
+      type: 'OUTBOUND',
+      quantity: 8,
+      stock_before: 14,
+      stock_after: 6,
+      reference_no: 'DO-01',
+      partner_name: 'Packing',
+      notes: '',
+      created_at: '2026-11-17T09:00:00.000Z',
+    },
+    {
+      id: 'tx-other',
+      user_id: 'user-b',
+      item_id: 'item-4',
+      sku: 'WH-B-999',
+      item_name: 'Oli',
+      type: 'INBOUND',
+      quantity: 99,
+      stock_before: 1,
+      stock_after: 100,
+      reference_no: 'PO-B',
+      partner_name: 'Vendor B',
+      notes: '',
+      created_at: '2026-11-17T09:00:00.000Z',
+    },
+  ];
+
+  const trend = calculateMovementTrend(txs, 'user-a', 7, refDate);
+  assert.equal(trend.points.length, 7);
+  assert.equal(trend.totalInbound, 20);
+  assert.equal(trend.totalOutbound, 8);
+  assert.equal(trend.netFlow, 12);
+
+  const cats = calculateCategoryDistribution(sampleItems, 'user-a');
+  assert.equal(cats.length, 3);
+  assert.equal(cats[0].category, 'Elektronik Gudang');
+  assert.equal(cats[0].totalUnits, 25);
+
+  const health = calculateStockHealthSummary(sampleItems, 'user-a');
+  assert.equal(health.amanCount, 1);
+  assert.equal(health.menipisCount, 1);
+  assert.equal(health.habisCount, 1);
+});
+
