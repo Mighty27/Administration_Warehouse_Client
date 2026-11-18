@@ -1,120 +1,130 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import {
-  ArrowLeftRight,
-  Boxes,
-  FolderLock,
   LayoutDashboard,
+  Package,
+  ClipboardList,
+  ArrowLeftRight,
+  ScanBarcode,
+  FolderLock,
   LogOut,
-  Menu,
-  Moon,
   ShieldCheck,
-  Sun,
   Warehouse,
+  Sun,
+  Moon,
+  Menu,
   X,
+  ChevronRight,
+  RotateCcw,
 } from 'lucide-react';
 import { useWarehouse } from '../context/WarehouseContext';
 import { ToastContainer } from './ToastContainer';
 
-const THEME_STORAGE_KEY = 'logivault_theme';
+interface NavItemConfig {
+  to: string;
+  label: string;
+  shortLabel: string;
+  icon: React.ComponentType<{ className?: string }>;
+  end?: boolean;
+}
 
-const NAV_ITEMS = [
+const NAV_ITEMS: NavItemConfig[] = [
   {
     to: '/',
-    label: 'Dashboard Ringkasan',
+    label: 'Dashboard & Performa',
     shortLabel: 'Dashboard',
     icon: LayoutDashboard,
     end: true,
   },
   {
     to: '/inventory',
-    label: 'Master Inventaris',
+    label: 'Lokasi Rak & FEFO',
     shortLabel: 'Inventaris',
-    icon: Boxes,
-    end: false,
+    icon: Package,
+  },
+  {
+    to: '/fulfillment',
+    label: 'Fulfillment & Picking',
+    shortLabel: 'Fulfillment',
+    icon: ClipboardList,
   },
   {
     to: '/transactions',
-    label: 'Transaksi Gudang',
-    shortLabel: 'Transaksi',
+    label: 'Putaway & Mutasi',
+    shortLabel: 'Mutasi',
     icon: ArrowLeftRight,
-    end: false,
+  },
+  {
+    to: '/mobile-wms',
+    label: 'WMS Mobile & Opname',
+    shortLabel: 'Mobile WMS',
+    icon: ScanBarcode,
   },
   {
     to: '/documents',
     label: 'Cloud File Vault',
-    shortLabel: 'File Vault',
+    shortLabel: 'Dokumen',
     icon: FolderLock,
-    end: false,
   },
 ];
 
+const THEME_STORAGE_KEY = 'logivault_theme';
+
 export const AppLayout: React.FC = () => {
-  const { user, logout } = useWarehouse();
+  const { user, signOut, items, orders, resetDemoData } = useWarehouse();
   const location = useLocation();
-  const navigate = useNavigate();
+  const mobileDropdownRef = useRef<HTMLDivElement>(null);
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
-  const mobileMenuRef = useRef<HTMLDivElement | null>(null);
 
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
-    try {
-      const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
-      if (saved === 'dark') return true;
-      if (saved === 'light') return false;
-    } catch {
-      // Abaikan jika localStorage tidak tersedia
-    }
-    return document.documentElement.classList.contains('dark');
+    const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (saved === 'dark') return true;
+    if (saved === 'light') return false;
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
   });
 
   useEffect(() => {
     const root = document.documentElement;
     if (isDarkMode) {
       root.classList.add('dark');
+      root.style.colorScheme = 'dark';
+      window.localStorage.setItem(THEME_STORAGE_KEY, 'dark');
     } else {
       root.classList.remove('dark');
-    }
-    try {
-      window.localStorage.setItem(
-        THEME_STORAGE_KEY,
-        isDarkMode ? 'dark' : 'light'
-      );
-    } catch {
-      // Abaikan error penyimpanan lokal
+      root.style.colorScheme = 'light';
+      window.localStorage.setItem(THEME_STORAGE_KEY, 'light');
     }
   }, [isDarkMode]);
 
-  // Tutup dropdown mobile otomatis saat berpindah rute halaman
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [location.pathname]);
 
-  // Tutup dropdown mobile saat klik di luar area menu atau menekan tombol Escape
   useEffect(() => {
     if (!isMobileMenuOpen) return;
 
     const handleClickOutside = (event: MouseEvent) => {
       if (
-        mobileMenuRef.current &&
-        !mobileMenuRef.current.contains(event.target as Node)
+        mobileDropdownRef.current &&
+        !mobileDropdownRef.current.contains(event.target as Node)
       ) {
         setIsMobileMenuOpen(false);
       }
     };
 
-    const handleKeyDown = (event: KeyboardEvent) => {
+    const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         setIsMobileMenuOpen(false);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keydown', handleEscape);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keydown', handleEscape);
     };
   }, [isMobileMenuOpen]);
 
@@ -122,53 +132,50 @@ export const AppLayout: React.FC = () => {
     setIsDarkMode((prev) => !prev);
   };
 
-  const currentRouteTitle = (() => {
-    if (location.pathname === '/') return 'Dashboard Ringkasan';
-    if (location.pathname.startsWith('/inventory')) return 'Master Inventaris';
-    if (location.pathname.startsWith('/transactions')) return 'Transaksi Gudang';
-    if (location.pathname.startsWith('/documents')) return 'Cloud File Vault';
-    return 'Operasional Gudang';
-  })();
+  if (!user) return null;
 
-  const handleLogout = async () => {
-    setIsMobileMenuOpen(false);
-    await logout();
-    navigate('/login');
-  };
+  const lowStockCount = items.filter((item) => item.stock <= item.min_stock).length;
+  const activeOrdersCount = orders.filter((ord) => ord.status !== 'SHIPPED').length;
+
+  const warehouseLabel = user.warehouse_name || user.warehouse_zone;
+  const roleLabel = user.role_title || user.role;
+
+  const activeTitle =
+    NAV_ITEMS.find((nav) =>
+      nav.end ? location.pathname === nav.to : location.pathname.startsWith(nav.to)
+    )?.label ?? 'Operasional Gudang';
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col md:flex-row transition-colors duration-150">
-      {/* Sidebar Tetap khusus Desktop (hidden md:flex) */}
-      <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 z-30 transition-colors duration-150">
-        <div className="h-16 px-6 flex items-center gap-3 border-b border-slate-200 dark:border-slate-800">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shrink-0">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col md:flex-row transition-colors duration-200">
+      {/* Sidebar Desktop (md:flex) — selalu petrol gelap */}
+      <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 bg-sidebar text-indigo-100 border-r border-indigo-950 z-30">
+        {/* Brand Header */}
+        <div className="h-16 px-5 flex items-center gap-3 border-b border-white/10">
+          <div className="w-8 h-8 rounded-md bg-white text-slate-950 flex items-center justify-center shrink-0">
             <Warehouse className="w-4 h-4" />
           </div>
-          <span className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100 whitespace-nowrap">
-            LogiVault
-          </span>
+          <span className="text-base font-bold tracking-tight text-white">LogiVault WMS</span>
         </div>
 
-        {/* Info Akun & Isolasi RLS */}
-        {user && (
-          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40">
-            <div className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
-              {user.full_name}
-            </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
-              {user.warehouse_zone} · {user.role}
-            </div>
-            <div className="mt-2 flex items-center gap-1.5 text-[11px] font-mono text-slate-500 dark:text-slate-400 truncate">
-              <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-              <span className="truncate" title={user.id}>
-                UID: {user.id.slice(0, 13)}...
-              </span>
-            </div>
+        {/* Info Gudang & Akun Aktif */}
+        <div className="px-5 py-4 border-b border-white/10">
+          <p className="text-xs font-semibold text-white truncate">{user.full_name}</p>
+          <p className="text-[11px] text-indigo-200/75 truncate mt-0.5">
+            {warehouseLabel} · {roleLabel}
+          </p>
+          <div className="mt-2.5 inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-white/5 border border-white/10">
+            <ShieldCheck className="w-3 h-3 text-emerald-400 shrink-0" />
+            <span
+              className="text-[11px] font-mono text-indigo-100/90 truncate"
+              title={user.id}
+            >
+              UID {user.id.slice(0, 8)}
+            </span>
           </div>
-        )}
+        </div>
 
-        {/* Menu Navigasi Utama Desktop */}
-        <nav aria-label="Menu Utama" className="flex-1 px-3 py-4 space-y-1">
+        {/* Menu Navigasi 6 Modul WMS */}
+        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto" aria-label="Menu Utama">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             return (
@@ -177,162 +184,180 @@ export const AppLayout: React.FC = () => {
                 to={item.to}
                 end={item.end}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors whitespace-nowrap ${
+                  `relative flex items-center justify-between px-3 py-2.5 rounded-md text-sm font-medium transition-colors ${
                     isActive
-                      ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+                      ? 'bg-white/10 text-white font-semibold before:content-[""] before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-1 before:rounded-r before:bg-indigo-300'
+                      : 'text-indigo-100/75 hover:bg-white/5 hover:text-white'
                   }`
                 }
               >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span>{item.label}</span>
+                <span className="flex items-center gap-3 min-w-0">
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{item.label}</span>
+                </span>
+                {item.to === '/inventory' && lowStockCount > 0 && (
+                  <span className="px-1.5 py-0.5 text-[11px] font-mono font-semibold rounded bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                    {lowStockCount}
+                  </span>
+                )}
+                {item.to === '/fulfillment' && activeOrdersCount > 0 && (
+                  <span className="px-1.5 py-0.5 text-[11px] font-mono font-semibold rounded bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
+                    {activeOrdersCount}
+                  </span>
+                )}
               </NavLink>
             );
           })}
         </nav>
 
-        {/* Footer Sidebar Desktop */}
-        <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-2">
+        {/* Footer Sidebar: Reset Demo, Tema & Keluar */}
+        <div className="p-3 border-t border-white/10 space-y-1">
+          <button
+            type="button"
+            onClick={resetDemoData}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium text-indigo-100/80 hover:bg-white/5 hover:text-white transition-colors cursor-pointer"
+          >
+            <RotateCcw className="w-4 h-4 text-indigo-300" />
+            <span>Reset Data Demo WMS</span>
+          </button>
+
           <button
             type="button"
             onClick={toggleDarkMode}
             aria-label={isDarkMode ? 'Aktifkan Mode Terang' : 'Aktifkan Mode Gelap'}
-            aria-pressed={isDarkMode}
-            className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg transition-colors cursor-pointer"
+            className="w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium text-indigo-100/80 hover:bg-white/5 hover:text-white transition-colors cursor-pointer"
           >
-            <span className="inline-flex items-center gap-2">
+            <span className="flex items-center gap-2.5">
               {isDarkMode ? (
-                <Sun className="w-3.5 h-3.5 text-amber-400" />
+                <Sun className="w-4 h-4 text-amber-300" />
               ) : (
-                <Moon className="w-3.5 h-3.5 text-slate-500" />
+                <Moon className="w-4 h-4 text-indigo-200" />
               )}
-              <span>{isDarkMode ? 'Mode Terang' : 'Mode Gelap'}</span>
-            </span>
-            <span className="text-[11px] font-mono text-slate-400 dark:text-slate-500">
-              {isDarkMode ? 'DARK' : 'LIGHT'}
+              <span>{isDarkMode ? 'Mode terang' : 'Mode gelap'}</span>
             </span>
           </button>
 
           <button
             type="button"
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg transition-colors cursor-pointer"
+            onClick={signOut}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-xs font-medium text-indigo-100/80 hover:bg-rose-500/20 hover:text-rose-200 transition-colors cursor-pointer"
           >
-            <LogOut className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-            <span>Keluar Sesi</span>
+            <LogOut className="w-4 h-4" />
+            <span>Keluar sesi</span>
           </button>
         </div>
       </aside>
 
       {/* Konten Utama */}
       <div className="flex-1 md:pl-64 flex flex-col min-h-screen">
-        {/* Top Bar Header + Hamburger Dropdown khusus Mobile (md:hidden) */}
-        <div ref={mobileMenuRef} className="sticky top-0 z-30">
-          <header className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 md:px-8 flex items-center justify-between gap-3 transition-colors duration-150">
-            <div className="flex items-center gap-2.5 text-sm min-w-0">
-              {/* Tombol Hamburger Menu — Hanya tampil di Mobile (md:hidden) */}
-              <button
-                type="button"
-                onClick={() => setIsMobileMenuOpen((prev) => !prev)}
-                aria-label={
-                  isMobileMenuOpen
-                    ? 'Tutup menu navigasi'
-                    : 'Buka menu navigasi'
-                }
-                aria-expanded={isMobileMenuOpen}
-                aria-controls="mobile-dropdown-navigation"
-                className="md:hidden inline-flex items-center justify-center w-9 h-9 rounded-lg text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors shrink-0 cursor-pointer"
-              >
-                {isMobileMenuOpen ? (
-                  <X className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                ) : (
-                  <Menu className="w-4 h-4" />
-                )}
-              </button>
-
-              {/* Identitas Brand ringkas di Mobile */}
-              <div className="md:hidden w-7 h-7 rounded-lg bg-indigo-600 flex items-center justify-center text-white shrink-0">
-                <Warehouse className="w-3.5 h-3.5" />
-              </div>
-
-              <span className="font-semibold text-slate-500 dark:text-slate-400 hidden sm:inline whitespace-nowrap">
-                {user?.warehouse_zone || 'Warehouse'}
+        {/* Top Bar */}
+        <header
+          ref={mobileDropdownRef}
+          className="h-16 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 lg:px-8 flex items-center justify-between sticky top-0 z-30 transition-colors duration-200"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="md:hidden w-8 h-8 rounded-md bg-indigo-600 flex items-center justify-center text-white shrink-0">
+              <Warehouse className="w-4 h-4" />
+            </div>
+            <div className="min-w-0 flex items-baseline gap-2">
+              <span className="hidden sm:inline text-xs font-medium text-slate-500 dark:text-slate-400 truncate">
+                {warehouseLabel}
               </span>
               <span
-                className="text-slate-300 dark:text-slate-700 hidden sm:inline"
+                className="hidden sm:inline text-slate-300 dark:text-slate-700"
                 aria-hidden="true"
               >
                 /
               </span>
-              <h1 className="font-bold text-slate-900 dark:text-slate-100 truncate">
-                {currentRouteTitle}
+              <h1 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight truncate">
+                {activeTitle}
               </h1>
             </div>
+          </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={toggleDarkMode}
-                aria-label={
-                  isDarkMode ? 'Beralih ke Mode Terang' : 'Beralih ke Mode Gelap'
-                }
-                aria-pressed={isDarkMode}
-                title={
-                  isDarkMode ? 'Beralih ke Mode Terang' : 'Beralih ke Mode Gelap'
-                }
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-              >
-                {isDarkMode ? (
-                  <>
-                    <Sun className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                    <span className="hidden sm:inline">Mode Terang</span>
-                  </>
-                ) : (
-                  <>
-                    <Moon className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
-                    <span className="hidden sm:inline">Mode Gelap</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-              >
-                <LogOut className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
-                <span className="hidden sm:inline">Keluar</span>
-              </button>
-            </div>
-          </header>
-
-          {/* Dropdown Menu Navigasi Mobile — Hanya tampil di Mobile (md:hidden) */}
-          {isMobileMenuOpen && (
-            <nav
-              id="mobile-dropdown-navigation"
-              aria-label="Navigasi Mobile"
-              className="md:hidden absolute top-full inset-x-0 mx-3 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl overflow-hidden z-40"
+          <div className="flex items-center gap-2">
+            {/* Tombol Dark Mode Toggle */}
+            <button
+              type="button"
+              onClick={toggleDarkMode}
+              aria-label={isDarkMode ? 'Beralih ke Mode Terang' : 'Beralih ke Mode Gelap'}
+              title={isDarkMode ? 'Mode Terang' : 'Mode Gelap'}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
-              {/* Ringkasan Akun & Sesi RLS pada Dropdown Mobile */}
-              {user && (
-                <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/50">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
-                      {user.full_name}
-                    </span>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-mono text-indigo-600 dark:text-indigo-400 shrink-0">
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                      <span>UID: {user.id.slice(0, 8)}...</span>
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                    {user.warehouse_zone} · {user.role}
-                  </p>
-                </div>
+              {isDarkMode ? (
+                <>
+                  <Sun className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="hidden sm:inline">Mode Terang</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-3.5 h-3.5 text-slate-600" />
+                  <span className="hidden sm:inline">Mode Gelap</span>
+                </>
               )}
+            </button>
 
-              {/* Daftar Menu Utama Dropdown Mobile */}
-              <div className="p-2 space-y-1">
+            {/* Tombol Keluar khusus Desktop */}
+            <button
+              type="button"
+              onClick={signOut}
+              className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Keluar</span>
+            </button>
+
+            {/* Tombol Hamburger Menu khusus Mobile (md:hidden) */}
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen((prev) => !prev)}
+              aria-expanded={isMobileMenuOpen}
+              aria-controls="mobile-dropdown-navigation"
+              aria-label={isMobileMenuOpen ? 'Tutup menu navigasi' : 'Buka menu navigasi'}
+              className="md:hidden relative inline-flex items-center justify-center w-9 h-9 rounded-lg text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+            >
+              {isMobileMenuOpen ? (
+                <X className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+              ) : (
+                <Menu className="w-4 h-4" />
+              )}
+              {!isMobileMenuOpen && lowStockCount > 0 && (
+                <span
+                  aria-label={`${lowStockCount} peringatan stok menipis`}
+                  className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-white text-[10px] font-bold flex items-center justify-center"
+                >
+                  {lowStockCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Dropdown Menu Navigasi Mobile (md:hidden) */}
+          {isMobileMenuOpen && (
+            <div
+              id="mobile-dropdown-navigation"
+              role="menu"
+              aria-label="Menu Navigasi Mobile"
+              className="md:hidden absolute top-full right-4 left-4 sm:left-auto sm:w-80 mt-2 bg-white dark:bg-slate-900 rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 overflow-hidden z-50"
+            >
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                      {user.full_name}
+                    </p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                      {warehouseLabel} · {roleLabel}
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/70 text-[10px] font-mono font-semibold text-emerald-700 dark:text-emerald-300 shrink-0">
+                    <ShieldCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                    UID {user.id.slice(0, 6)}
+                  </span>
+                </div>
+              </div>
+
+              <nav className="p-2 space-y-1" aria-label="Daftar Halaman">
                 {NAV_ITEMS.map((item) => {
                   const Icon = item.icon;
                   return (
@@ -340,59 +365,62 @@ export const AppLayout: React.FC = () => {
                       key={item.to}
                       to={item.to}
                       end={item.end}
+                      role="menuitem"
                       onClick={() => setIsMobileMenuOpen(false)}
                       className={({ isActive }) =>
-                        `flex items-center justify-between px-3.5 py-2.5 rounded-lg text-xs font-medium transition-colors ${
+                        `flex items-center justify-between px-3 py-2.5 rounded-lg text-xs font-semibold transition-colors ${
                           isActive
-                            ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 font-semibold'
-                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-100'
+                            ? 'bg-indigo-600 text-white'
+                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                         }`
                       }
                     >
-                      <span className="inline-flex items-center gap-3">
-                        <Icon className="w-4 h-4 shrink-0" />
-                        <span>{item.label}</span>
-                      </span>
+                      {({ isActive }) => (
+                        <>
+                          <span className="flex items-center gap-2.5">
+                            <Icon
+                              className={`w-4 h-4 ${
+                                isActive
+                                  ? 'text-white'
+                                  : 'text-slate-500 dark:text-slate-400'
+                              }`}
+                            />
+                            <span>{item.label}</span>
+                          </span>
+                          <ChevronRight
+                            className={`w-3.5 h-3.5 ${
+                              isActive ? 'text-white/80' : 'text-slate-400'
+                            }`}
+                          />
+                        </>
+                      )}
                     </NavLink>
                   );
                 })}
-              </div>
+              </nav>
 
-              {/* Aksi Cepat Dropdown Mobile */}
-              <div className="p-2.5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex items-center justify-between gap-2">
+              <div className="p-2 border-t border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900">
                 <button
                   type="button"
-                  onClick={toggleDarkMode}
-                  className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                  role="menuitem"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    signOut();
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
                 >
-                  {isDarkMode ? (
-                    <>
-                      <Sun className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                      <span>Mode Terang</span>
-                    </>
-                  ) : (
-                    <>
-                      <Moon className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400 shrink-0" />
-                      <span>Mode Gelap</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-950/70 rounded-lg transition-colors cursor-pointer"
-                >
-                  <LogOut className="w-3.5 h-3.5 shrink-0" />
-                  <span>Keluar Sesi</span>
+                  <span className="flex items-center gap-2.5">
+                    <LogOut className="w-4 h-4" />
+                    <span>Keluar dari Sesi Akun</span>
+                  </span>
                 </button>
               </div>
-            </nav>
+            </div>
           )}
-        </div>
+        </header>
 
-        {/* Area Halaman Dinamis */}
-        <main className="flex-1 p-4 md:p-8 max-w-7xl w-full mx-auto">
+        {/* Isi Halaman */}
+        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-6 pb-10">
           <Outlet />
         </main>
       </div>
@@ -401,4 +429,3 @@ export const AppLayout: React.FC = () => {
     </div>
   );
 };
-

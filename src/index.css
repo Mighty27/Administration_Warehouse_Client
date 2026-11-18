@@ -1,26 +1,148 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+  LogiVault — Design tokens "Rak & Palet"
+  Semua halaman memakai utilitas slate-*, indigo-*, emerald-*, amber-*, rose-*.
+  Di sini skala warna itu dipetakan ulang ke palet industrial gudang:
+  slate   → "Beton"   : abu-abu dingin kehijauan, seperti lantai gudang
+  indigo  → "Petrol"  : biru-hijau tua, warna utama (aksi, navigasi aktif, fokus)
+  emerald → status AMAN
+  amber   → status MENIPIS
+  rose    → status HABIS / bahaya
+*/
+@theme {
+  --font-sans: 'Archivo', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  /* Beton (menggantikan slate) */
+  --color-slate-50: #f3f6f6;
+  --color-slate-100: #e7eded;
+  --color-slate-200: #d4dddd;
+  --color-slate-300: #b4c2c4;
+  --color-slate-400: #87999c;
+  --color-slate-500: #637578;
+  --color-slate-600: #4b5b5e;
+  --color-slate-700: #354346;
+  --color-slate-800: #222e30;
+  --color-slate-900: #151f21;
+  --color-slate-950: #0c1517;
+
+  /* Petrol (menggantikan indigo) */
+  --color-indigo-50: #ecf6f8;
+  --color-indigo-100: #d3ebf0;
+  --color-indigo-200: #a9d8e2;
+  --color-indigo-300: #72bdcd;
+  --color-indigo-400: #3d9bb0;
+  --color-indigo-500: #1b7b90;
+  --color-indigo-600: #0e6173;
+  --color-indigo-700: #0c4f5e;
+  --color-indigo-800: #0d414d;
+  --color-indigo-900: #0e3640;
+  --color-indigo-950: #072027;
+
+  /* Status AMAN (emerald) */
+  --color-emerald-50: #eef8f3;
+  --color-emerald-100: #d5eee2;
+  --color-emerald-200: #adddc8;
+  --color-emerald-300: #77c4a5;
+  --color-emerald-400: #47a883;
+  --color-emerald-500: #2e9468;
+  --color-emerald-600: #207652;
+  --color-emerald-700: #1b5e43;
+  --color-emerald-800: #184b36;
+  --color-emerald-900: #143e2d;
+  --color-emerald-950: #0a2319;
+
+  /* Status MENIPIS (amber) */
+  --color-amber-50: #fdf8ed;
+  --color-amber-100: #f9eccd;
+  --color-amber-200: #f3d799;
+  --color-amber-300: #ebb95c;
+  --color-amber-400: #e19f2e;
+  --color-amber-500: #cf950c;
+  --color-amber-600: #b27208;
+  --color-amber-700: #8e540b;
+  --color-amber-800: #754310;
+  --color-amber-900: #613811;
+  --color-amber-950: #381c06;
+
+  /* Status HABIS / Bahaya (rose) */
+  --color-rose-50: #fcf2f1;
+  --color-rose-100: #f8e0de;
+  --color-rose-200: #f2c5c1;
+  --color-rose-300: #e79d97;
+  --color-rose-400: #d96c63;
+  --color-rose-500: #c8473c;
+  --color-rose-600: #b43328;
+  --color-rose-700: #96281f;
+  --color-rose-800: #7d241d;
+  --color-rose-900: #69231d;
+  --color-rose-950: #390e0b;
+
+  /* Sudut lebih tegas */
+  --radius-lg: 0.375rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.625rem;
+}
+
 @layer base {
-  :root {
-    --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-    --font-mono: 'IBM Plex Mono', monospace;
+  html {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
   }
 
   body {
-    font-family: var(--font-sans);
-    background-color: #f8fafc;
-    color: #0f172a;
+    background-color: var(--color-slate-50);
+    color: var(--color-slate-900);
+    margin: 0;
   }
 
-  .dark body {
-    background-color: #020617;
-    color: #f1f5f9;
+  html.dark body {
+    background-color: var(--color-slate-950);
+    color: var(--color-slate-100);
   }
 
+  /* Pastikan elemen option di dalam select terbaca jelas pada Dark Mode */
+  html.dark select option {
+    background-color: var(--color-slate-900);
+    color: var(--color-slate-100);
+  }
+
+  /* Angka di tabel dan kartu statistik selalu sejajar */
+  table,
   .font-mono,
-  .tabular-nums {
-    font-family: var(--font-mono);
+  .tabular-nums,
+  input[type="number"] {
     font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Latar panel kiri halaman masuk dan sidebar desktop: selalu petrol gelap */
+.bg-sidebar {
+  background-color: #081e24;
+}
+
+.bg-rack-grid {
+  background-image:
+    linear-gradient(to right, rgba(90, 174, 192, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(90, 174, 192, 0.08) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

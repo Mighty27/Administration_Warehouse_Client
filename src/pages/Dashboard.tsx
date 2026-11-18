@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
-  ArrowDownLeft,
   ArrowRight,
-  ArrowUpRight,
   BarChart3,
-  Boxes,
   CalendarClock,
   CheckCircle2,
+  ClipboardCheck,
+  Clock,
   Layers,
+  Package,
   PieChart,
   Plus,
+  RefreshCw,
+  Timer,
+  Users,
   XCircle,
 } from 'lucide-react';
 import { useWarehouse } from '../context/WarehouseContext';
@@ -20,29 +23,35 @@ import {
   calculateDashboardMetrics,
   calculateMovementTrend,
   calculateStockHealthSummary,
-  getStockStatus,
-  getStockStatusLabel,
+  getDaysUntilExpiry,
+  getFefoStatus,
+  getReplenishmentCandidates,
+  sortItemsByFefo,
 } from '../utils/warehouseRules';
 
-const CATEGORY_BAR_COLORS = [
-  'bg-indigo-600',
-  'bg-sky-500',
-  'bg-emerald-500',
-  'bg-amber-500',
-  'bg-violet-500',
-  'bg-slate-500',
-];
-
 export const Dashboard: React.FC = () => {
-  const { user, items, transactions, dataLoading } = useWarehouse();
-  const navigate = useNavigate();
+  const {
+    user,
+    items,
+    transactions,
+    orders,
+    staffMetrics,
+    executeReplenishment,
+  } = useWarehouse();
 
   const [trendRangeDays, setTrendRangeDays] = useState<7 | 14>(7);
   const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(null);
 
   if (!user) return null;
 
+  const warehouseLabel = user.warehouse_name || user.warehouse_zone;
+
   const metrics = calculateDashboardMetrics(items, transactions, user.id);
+  const replenishmentCandidates = getReplenishmentCandidates(items, user.id);
+  const fefoPriorityItems = sortItemsByFefo(
+    items.filter((i) => i.expiry_date !== null)
+  ).slice(0, 4);
+
   const movementTrend = calculateMovementTrend(
     transactions,
     user.id,
@@ -51,152 +60,341 @@ export const Dashboard: React.FC = () => {
   const categoryDistribution = calculateCategoryDistribution(items, user.id);
   const stockHealth = calculateStockHealthSummary(items, user.id);
 
+  // Statistik Pipeline Pemenuhan Pesanan
+  const pendingOrders = orders.filter((o) => o.status === 'PENDING').length;
+  const pickingOrders = orders.filter((o) => o.status === 'PICKING').length;
+  const packingOrders = orders.filter((o) => o.status === 'PACKING').length;
+  const readyToShipOrders = orders.filter((o) => o.status === 'READY_TO_SHIP').length;
+  const shippedOrders = orders.filter((o) => o.status === 'SHIPPED').length;
+
+  // Rata-rata Kecepatan Pick & Pack & Akurasi Karyawan
+  const avgPickPackTime =
+    staffMetrics.length > 0
+      ? (
+          staffMetrics.reduce((s, m) => s + m.avg_pick_pack_minutes, 0) /
+          staffMetrics.length
+        ).toFixed(1)
+      : '3.5';
+
+  const avgAccuracyRate =
+    staffMetrics.length > 0
+      ? (
+          staffMetrics.reduce((s, m) => s + m.accuracy_rate, 0) /
+          staffMetrics.length
+        ).toFixed(1)
+      : '99.5';
+
   const activePoint =
     selectedDayIndex !== null && movementTrend.points[selectedDayIndex]
       ? movementTrend.points[selectedDayIndex]
       : movementTrend.points[movementTrend.points.length - 1];
 
-  // Barang dengan status kritis/menipis (stock <= min_stock), diurutkan dari stok terkecil
-  const criticalItems = [...items]
-    .filter((item) => item.stock <= item.min_stock)
-    .sort((a, b) => a.stock - b.stock);
-
-  // 5 aktivitas transaksi terakhir
-  const recentTransactions = [...transactions]
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 5);
-
-  const formatDateTime = (iso: string) => {
-    const d = new Date(iso);
-    return d.toLocaleDateString('id-ID', {
-      day: '2-digit',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
-  // Geometri SVG Donut Chart untuk Kesehatan SKU
   const donutRadius = 38;
   const donutCircumference = 2 * Math.PI * donutRadius;
-  const totalSkuSafe = Math.max(1, metrics.totalSku);
-  const amanArc = (stockHealth.amanCount / totalSkuSafe) * donutCircumference;
-  const menipisArc = (stockHealth.menipisCount / totalSkuSafe) * donutCircumference;
-  const habisArc = (stockHealth.habisCount / totalSkuSafe) * donutCircumference;
+  const amanArc = (stockHealth.amanPct / 100) * donutCircumference;
+  const menipisArc = (stockHealth.menipisPct / 100) * donutCircumference;
+  const habisArc = (stockHealth.habisPct / 100) * donutCircumference;
 
   return (
-    <div className="space-y-8">
-      {/* Header Kontekstual & Aksi Utama */}
+    <div className="space-y-6">
+      {/* Header Ikhtisar Operasional */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-            Ikhtisar Operasional Gudang
+            Ikhtisar Operasional WMS & Performa Gudang
           </h2>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
-            Data real-time terisolasi untuk <span className="font-semibold text-slate-900 dark:text-slate-100">{user.full_name}</span> · {user.warehouse_zone}
+            Pemantauan real-time lokasi rak, prioritas FEFO, Replenishment, dan pemenuhan pesanan untuk{' '}
+            <span className="font-semibold text-slate-800 dark:text-slate-200">
+              {user.full_name}
+            </span>{' '}
+            · {warehouseLabel}
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <Link
+            to="/fulfillment"
+            className="inline-flex items-center justify-center gap-2 px-3.5 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors whitespace-nowrap shrink-0"
+          >
+            <ClipboardCheck className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <span>Proses Pesanan ({orders.length - shippedOrders})</span>
+          </Link>
+
           <Link
             to="/transactions"
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors whitespace-nowrap shrink-0"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors whitespace-nowrap shrink-0"
           >
             <Plus className="w-4 h-4" />
-            <span>Catat Transaksi Gudang</span>
+            <span>Catat Putaway / Mutasi</span>
           </Link>
         </div>
       </div>
 
-      {/* 4 Kartu Statistik Utama */}
-      <section aria-label="Statistik Utama Gudang" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* 4 Kartu KPI Utama Enterprise WMS */}
+      <section
+        aria-label="Statistik Utama Gudang"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+      >
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
           <div className="flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
-            <span>Total SKU Terdaftar</span>
-            <Boxes className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+            <span>Total SKU & Unit Fisik</span>
+            <Package className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           </div>
-          <div className="mt-3 text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-            {dataLoading ? '...' : metrics.totalSku.toLocaleString('id-ID')}
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100">
+              {metrics.totalSku} SKU
+            </span>
+            <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+              · {(metrics.totalUnits + metrics.totalReserveUnits).toLocaleString('id-ID')} Unit
+            </span>
           </div>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Item aktif di katalog gudang
+          <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400 font-mono">
+            Rak Picking: {metrics.totalUnits} · Rak Inbound: {metrics.totalReserveUnits}
           </p>
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
           <div className="flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
-            <span>Total Unit Stok Fisik</span>
-            <Layers className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+            <span>Pipeline Pemenuhan Pesanan</span>
+            <Layers className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           </div>
-          <div className="mt-3 text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-            {dataLoading ? '...' : metrics.totalUnits.toLocaleString('id-ID')}
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100">
+              {orders.length} Pesanan
+            </span>
+            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+              · {readyToShipOrders} Siap Kirim
+            </span>
           </div>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Akumulasi seluruh kuantitas barang
+          <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400 font-mono">
+            Pending: {pendingOrders} · Pick: {pickingOrders} · Pack: {packingOrders}
           </p>
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
           <div className="flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
-            <span>Peringatan Stok Menipis</span>
-            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            <span>Kecepatan Pick & Pack (SLA)</span>
+            <Timer className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
-          <div
-            className={`mt-3 text-2xl font-bold font-mono tabular-nums ${
-              metrics.lowStockCount > 0
-                ? 'text-amber-600 dark:text-amber-400'
-                : 'text-slate-900 dark:text-slate-100'
-            }`}
-          >
-            {dataLoading ? '...' : metrics.lowStockCount.toLocaleString('id-ID')}
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-bold font-mono tabular-nums text-emerald-700 dark:text-emerald-400">
+              {avgPickPackTime} mnt
+            </span>
+            <span className="text-xs font-mono font-semibold text-slate-600 dark:text-slate-300">
+              · Akurasi {avgAccuracyRate}%
+            </span>
           </div>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            SKU dengan stok &le; batas minimum
+          <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+            Rata-rata waktu penyelesaian per pesanan
           </p>
         </div>
 
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5">
           <div className="flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
-            <span>Transaksi Hari Ini</span>
-            <CalendarClock className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+            <span>Replenishment & Prioritas FEFO</span>
+            <AlertTriangle className="w-4 h-4 text-amber-500" />
           </div>
-          <div className="mt-3 text-2xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-            {dataLoading ? '...' : metrics.todayTransactionsCount.toLocaleString('id-ID')}
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-bold font-mono tabular-nums text-amber-600 dark:text-amber-400">
+              {metrics.replenishmentNeededCount} Transfer
+            </span>
+            <span className="text-xs font-mono text-rose-600 dark:text-rose-400">
+              · {metrics.nearExpiryCount} FEFO Dekat
+            </span>
           </div>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Pergerakan Inbound & Outbound
+          <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+            Rekomendasi isi ulang Rak Picking & pantauan kadaluwarsa
           </p>
         </div>
       </section>
 
-      {/* BAGIAN GRAFIK ANALITIK WAREHOUSE (2 Kolom Proporsional: 7 Cols Tren Mutasi + 5 Cols Komposisi Stok) */}
+      {/* Widget Rekomendasi Pintar: Auto-Replenishment & Prioritas FEFO */}
       <section
-        aria-label="Grafik Analitik Operasional Gudang"
-        className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch"
+        aria-label="Rekomendasi Transfer Produk dan Prioritas FEFO"
+        className="grid grid-cols-1 lg:grid-cols-12 gap-6"
       >
-        {/* Grafik 1 (7 Cols): Tren Pergerakan Barang Harian (Inbound vs Outbound) */}
+        {/* Kartu Rekomendasi Transfer Produk (Replenishment) */}
         <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-col justify-between">
           <div>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  Rekomendasi Transfer Produk (Auto-Replenishment)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Deteksi otomatis saat stok di Rak Picking menipis namun masih tersedia stok cadangan di Rak Inbound
+                </p>
+              </div>
+              <Link
+                to="/inventory?status=MENIPIS"
+                className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 inline-flex items-center gap-1 whitespace-nowrap shrink-0"
+              >
+                <span>Buka Peta Rak</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            {replenishmentCandidates.length === 0 ? (
+              <div className="p-6 text-center rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-200/70 dark:border-slate-800">
+                <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto mb-1.5" />
+                <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                  Seluruh Rak Picking Terisi Optimal
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Tidak ada SKU yang memerlukan transfer darurat dari Rak Inbound saat ini.
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-200 dark:divide-slate-800">
+                {replenishmentCandidates.map((item) => (
+                  <div
+                    key={item.id}
+                    className="py-3 first:pt-0 last:pb-0 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 text-xs font-mono text-slate-500 dark:text-slate-400 flex-wrap">
+                        <span className="font-semibold text-slate-900 dark:text-slate-100">
+                          {item.sku}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span className="text-indigo-600 dark:text-indigo-400 font-semibold">
+                          {item.inbound_rack_location} → {item.rack_location}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span className="text-amber-600 dark:text-amber-400 font-semibold">
+                          Picking: {item.stock} / Min: {item.min_stock} {item.unit}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100 mt-0.5 truncate">
+                        {item.name}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                        Tersedia di Rak Inbound: {item.reserve_stock} {item.unit} · Rekomendasi isi ulang: +{item.recommendedTransferQty} {item.unit}
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        executeReplenishment({
+                          item_id: item.id,
+                          transfer_qty: item.recommendedTransferQty,
+                        })
+                      }
+                      className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>
+                        Transfer +{item.recommendedTransferQty} {item.unit}
+                      </span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Kartu Peringatan Prioritas FEFO (First Expired, First Out) */}
+        <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+          <div>
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  Urutan Pengambilan FEFO (First Expired, First Out)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Batch dengan tanggal kedaluwarsa terdekat wajib diambil lebih dulu
+                </p>
+              </div>
+              <CalendarClock className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            </div>
+
+            <div className="divide-y divide-slate-200 dark:divide-slate-800">
+              {fefoPriorityItems.map((item, idx) => {
+                const daysLeft = getDaysUntilExpiry(item.expiry_date);
+                const fefoState = getFefoStatus(item.expiry_date);
+                return (
+                  <div
+                    key={item.id}
+                    className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 text-xs font-mono text-slate-500 dark:text-slate-400">
+                        <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                          FEFO #{idx + 1}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span className="font-semibold text-slate-900 dark:text-slate-100">
+                          {item.sku}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span>{item.rack_location}</span>
+                      </div>
+                      <p className="text-xs font-medium text-slate-900 dark:text-slate-100 truncate mt-0.5">
+                        {item.name}
+                      </p>
+                      <p className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                        Batch: {item.batch_number} · Exp: {item.expiry_date}
+                      </p>
+                    </div>
+
+                    <div className="text-right shrink-0">
+                      <span
+                        className={`text-xs font-mono font-bold ${
+                          fefoState === 'EXPIRED'
+                            ? 'text-rose-600 dark:text-rose-400'
+                            : fefoState === 'NEAR_EXPIRY'
+                            ? 'text-amber-600 dark:text-amber-400'
+                            : 'text-emerald-600 dark:text-emerald-400'
+                        }`}
+                      >
+                        {daysLeft !== null
+                          ? daysLeft <= 0
+                            ? 'Kedaluwarsa'
+                            : `${daysLeft} hari lagi`
+                          : '-'}
+                      </span>
+                      <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
+                        Stok: {item.stock} {item.unit}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Grafik Analitik Operasional Gudang */}
+      <section
+        aria-label="Grafik Analitik Operasional Gudang"
+        className="grid grid-cols-1 lg:grid-cols-12 gap-6"
+      >
+        {/* Grafik Batang Tren Pergerakan Barang */}
+        <div className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+          <div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div className="flex items-start gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
                   <BarChart3 className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                     Grafik Tren Pergerakan Barang (Inbound vs Outbound)
                   </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Perbandingan volume unit barang masuk dan keluar per hari
                   </p>
                 </div>
               </div>
 
-              {/* Filter Rentang Hari Grafik */}
               <div
                 role="group"
                 aria-label="Rentang waktu grafik pergerakan"
-                className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg self-start sm:self-auto shrink-0"
+                className="inline-flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-lg self-start sm:self-auto"
               >
                 <button
                   type="button"
@@ -204,10 +402,10 @@ export const Dashboard: React.FC = () => {
                     setTrendRangeDays(7);
                     setSelectedDayIndex(null);
                   }}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                     trendRangeDays === 7
                       ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                      : 'text-slate-600 dark:text-slate-400'
                   }`}
                 >
                   7 Hari
@@ -218,10 +416,10 @@ export const Dashboard: React.FC = () => {
                     setTrendRangeDays(14);
                     setSelectedDayIndex(null);
                   }}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                     trendRangeDays === 14
                       ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
+                      : 'text-slate-600 dark:text-slate-400'
                   }`}
                 >
                   14 Hari
@@ -229,149 +427,110 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Ringkasan Volume Periode & Legenda */}
-            <div className="grid grid-cols-3 gap-3 py-3.5 border-b border-slate-100 dark:border-slate-800/80 text-xs">
+            <div className="grid grid-cols-3 gap-3 py-3 border-y border-slate-100 dark:border-slate-800 mb-4">
               <div>
-                <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
-                  <span className="w-2.5 h-2.5 rounded-xs bg-emerald-500 inline-block shrink-0" />
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="w-2.5 h-2.5 rounded-xs bg-emerald-600 inline-block" />
                   <span>Total Masuk</span>
                 </div>
-                <p className="text-base font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums mt-0.5">
-                  +{movementTrend.totalInbound.toLocaleString('id-ID')}{' '}
-                  <span className="text-xs font-normal text-slate-500 dark:text-slate-400">unit</span>
+                <p className="text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100 mt-0.5">
+                  +{movementTrend.totalInbound} unit
                 </p>
               </div>
-
               <div>
-                <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
-                  <span className="w-2.5 h-2.5 rounded-xs bg-amber-500 inline-block shrink-0" />
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="w-2.5 h-2.5 rounded-xs bg-amber-500 inline-block" />
                   <span>Total Keluar</span>
                 </div>
-                <p className="text-base font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums mt-0.5">
-                  -{movementTrend.totalOutbound.toLocaleString('id-ID')}{' '}
-                  <span className="text-xs font-normal text-slate-500 dark:text-slate-400">unit</span>
+                <p className="text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100 mt-0.5">
+                  -{movementTrend.totalOutbound} unit
                 </p>
               </div>
-
               <div>
-                <span className="text-slate-500 dark:text-slate-400 block">Selisih Bersih</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Selisih Bersih
+                </span>
                 <p
-                  className={`text-base font-bold font-mono tabular-nums mt-0.5 ${
+                  className={`text-sm font-bold font-mono tabular-nums mt-0.5 ${
                     movementTrend.netFlow >= 0
                       ? 'text-emerald-600 dark:text-emerald-400'
                       : 'text-rose-600 dark:text-rose-400'
                   }`}
                 >
                   {movementTrend.netFlow >= 0
-                    ? `+${movementTrend.netFlow.toLocaleString('id-ID')}`
-                    : movementTrend.netFlow.toLocaleString('id-ID')}{' '}
-                  <span className="text-xs font-normal text-slate-500 dark:text-slate-400">unit</span>
+                    ? `+${movementTrend.netFlow}`
+                    : movementTrend.netFlow}{' '}
+                  unit
                 </p>
               </div>
             </div>
 
-            {/* Kanvas Grafik Batang Interaktif */}
-            <div className="pt-5 pb-2">
-              <div className="h-48 flex items-end gap-2 sm:gap-3 border-b border-slate-200 dark:border-slate-800 pb-2 px-1 relative">
-                {/* Garis bantu horizontal */}
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-x-0 top-0 border-t border-dashed border-slate-100 dark:border-slate-800 pointer-events-none flex justify-end"
-                >
-                  <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 -mt-2 bg-white dark:bg-slate-900 px-1">
-                    {movementTrend.maxDailyVolume}
-                  </span>
-                </div>
-                <div
-                  aria-hidden="true"
-                  className="absolute inset-x-0 top-1/2 border-t border-dashed border-slate-100 dark:border-slate-800 pointer-events-none flex justify-end"
-                >
-                  <span className="text-[10px] font-mono text-slate-400 dark:text-slate-500 -mt-2 bg-white dark:bg-slate-900 px-1">
-                    {Math.round(movementTrend.maxDailyVolume / 2)}
-                  </span>
-                </div>
+            {/* Area Bar Chart */}
+            <div className="relative h-44 pt-4 pb-2 flex items-end justify-between gap-1.5 border-b border-slate-200 dark:border-slate-800">
+              {movementTrend.points.map((pt, idx) => {
+                const inHeight = Math.round(
+                  (pt.inbound / movementTrend.maxDailyVolume) * 120
+                );
+                const outHeight = Math.round(
+                  (pt.outbound / movementTrend.maxDailyVolume) * 120
+                );
+                const isSelected =
+                  (selectedDayIndex === null &&
+                    idx === movementTrend.points.length - 1) ||
+                  selectedDayIndex === idx;
 
-                {movementTrend.points.map((pt, idx) => {
-                  const inboundHeightPct = Math.max(
-                    pt.inbound > 0 ? 6 : 2,
-                    Math.round((pt.inbound / movementTrend.maxDailyVolume) * 100)
-                  );
-                  const outboundHeightPct = Math.max(
-                    pt.outbound > 0 ? 6 : 2,
-                    Math.round((pt.outbound / movementTrend.maxDailyVolume) * 100)
-                  );
-                  const isSelected =
-                    (selectedDayIndex === null &&
-                      idx === movementTrend.points.length - 1) ||
-                    selectedDayIndex === idx;
-
-                  return (
-                    <button
-                      key={pt.dateKey}
-                      type="button"
-                      onClick={() => setSelectedDayIndex(idx)}
-                      onMouseEnter={() => setSelectedDayIndex(idx)}
-                      aria-label={`Detail mutasi ${pt.label}: Masuk ${pt.inbound} unit, Keluar ${pt.outbound} unit`}
-                      className={`flex-1 h-full flex flex-col justify-end items-center group rounded-lg px-0.5 pt-2 transition-colors cursor-pointer ${
-                        isSelected
-                          ? 'bg-slate-100/80 dark:bg-slate-800/80'
-                          : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
-                      }`}
-                    >
-                      <div className="w-full h-36 flex items-end justify-center gap-1">
-                        {/* Batang Inbound */}
-                        <div
-                          style={{ height: `${inboundHeightPct}%` }}
-                          className={`w-full max-w-[14px] rounded-t-sm transition-all duration-150 ${
-                            pt.inbound > 0
-                              ? 'bg-emerald-500 group-hover:bg-emerald-600'
-                              : 'bg-slate-200 dark:bg-slate-700'
-                          }`}
-                          title={`Inbound ${pt.label}: +${pt.inbound}`}
-                        />
-                        {/* Batang Outbound */}
-                        <div
-                          style={{ height: `${outboundHeightPct}%` }}
-                          className={`w-full max-w-[14px] rounded-t-sm transition-all duration-150 ${
-                            pt.outbound > 0
-                              ? 'bg-amber-500 group-hover:bg-amber-600'
-                              : 'bg-slate-200 dark:bg-slate-700'
-                          }`}
-                          title={`Outbound ${pt.label}: -${pt.outbound}`}
-                        />
-                      </div>
-                      <span
-                        className={`mt-2 text-[10px] font-mono tabular-nums whitespace-nowrap ${
-                          isSelected
-                            ? 'font-bold text-indigo-600 dark:text-indigo-400'
-                            : 'text-slate-500 dark:text-slate-400'
-                        }`}
-                      >
-                        {trendRangeDays === 7 ? pt.label : pt.label.slice(0, 2)}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+                return (
+                  <button
+                    key={pt.dateKey}
+                    type="button"
+                    onClick={() => setSelectedDayIndex(idx)}
+                    aria-label={`Detail mutasi ${pt.label}: Masuk ${pt.inbound} unit, Keluar ${pt.outbound} unit`}
+                    className={`flex-1 flex flex-col items-center gap-1.5 py-1.5 rounded-lg transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-indigo-50/70 dark:bg-indigo-950/40'
+                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                    }`}
+                  >
+                    <div className="w-full h-32 flex items-end justify-center gap-1 px-1">
+                      <div
+                        title={`Inbound ${pt.label}: +${pt.inbound}`}
+                        style={{ height: `${Math.max(4, inHeight)}px` }}
+                        className="w-2.5 sm:w-3 rounded-t-xs bg-emerald-600 transition-opacity"
+                      />
+                      <div
+                        title={`Outbound ${pt.label}: -${pt.outbound}`}
+                        style={{ height: `${Math.max(4, outHeight)}px` }}
+                        className="w-2.5 sm:w-3 rounded-t-xs bg-amber-500 transition-opacity"
+                      />
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-600 dark:text-slate-400 truncate max-w-full">
+                      {pt.label}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Detail Bar Hari Terpilih */}
           {activePoint && (
-            <div className="mt-2 px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 rounded-lg flex flex-wrap items-center justify-between gap-2 text-xs">
-              <div className="font-medium text-slate-700 dark:text-slate-300">
-                Rincian <span className="font-bold text-slate-900 dark:text-slate-100">{activePoint.shortDay}, {activePoint.label}</span> ({activePoint.transactionsCount} transaksi)
-              </div>
-              <div className="flex items-center gap-3 font-mono tabular-nums">
-                <span className="text-emerald-700 dark:text-emerald-400 font-semibold">
+            <div className="mt-3 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="text-slate-600 dark:text-slate-300">
+                Rincian{' '}
+                <strong className="font-semibold text-slate-900 dark:text-slate-100">
+                  {activePoint.shortDay}, {activePoint.label}
+                </strong>{' '}
+                ({activePoint.transactionsCount} transaksi)
+              </span>
+              <div className="flex items-center gap-2 font-mono font-semibold">
+                <span className="text-emerald-700 dark:text-emerald-400">
                   Masuk: +{activePoint.inbound}
                 </span>
-                <span className="text-slate-300 dark:text-slate-600" aria-hidden="true">·</span>
-                <span className="text-amber-700 dark:text-amber-400 font-semibold">
+                <span aria-hidden="true">·</span>
+                <span className="text-amber-700 dark:text-amber-400">
                   Keluar: -{activePoint.outbound}
                 </span>
-                <span className="text-slate-300 dark:text-slate-600" aria-hidden="true">·</span>
-                <span className="text-slate-900 dark:text-slate-100 font-bold">
+                <span aria-hidden="true">·</span>
+                <span className="text-slate-900 dark:text-slate-100">
                   Net: {activePoint.net >= 0 ? `+${activePoint.net}` : activePoint.net}
                 </span>
               </div>
@@ -379,347 +538,229 @@ export const Dashboard: React.FC = () => {
           )}
         </div>
 
-        {/* Grafik 2 (5 Cols): Distribusi Stok per Kategori & Proporsi Kesehatan SKU */}
-        <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-col justify-between space-y-5">
-          <div className="flex items-start gap-2.5 pb-4 border-b border-slate-200 dark:border-slate-800">
-            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
-              <PieChart className="w-4 h-4" />
+        {/* Grafik Donut Kesehatan Stok & Distribusi Kategori */}
+        <div className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 flex flex-col justify-between">
+          <div>
+            <div className="flex items-start gap-2.5 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
+                <PieChart className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  Komposisi Kategori & Kesehatan Stok
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Proporsi status ketersediaan SKU di Rak Picking
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                Komposisi Kategori & Kesehatan Stok
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Proporsi status ketersediaan SKU dan distribusi unit per kategori
-              </p>
-            </div>
-          </div>
 
-          {/* Donut Ring Kesehatan SKU */}
-          <div className="flex items-center gap-5 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200/70 dark:border-slate-700/70">
-            <div className="relative w-24 h-24 shrink-0 flex items-center justify-center">
-              <svg
-                viewBox="0 0 100 100"
-                className="w-24 h-24 -rotate-90 transform"
-                aria-label="Grafik Donut Kesehatan Stok SKU"
-              >
-                <circle
-                  cx="50"
-                  cy="50"
-                  r={donutRadius}
-                  fill="transparent"
-                  className="stroke-slate-200 dark:stroke-slate-700"
-                  strokeWidth="12"
-                />
-                {metrics.totalSku > 0 && (
-                  <>
+            <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-800 flex items-center gap-5 mb-4">
+              <div className="relative w-24 h-24 shrink-0 flex items-center justify-center">
+                <svg
+                  viewBox="0 0 100 100"
+                  className="w-24 h-24 -rotate-90"
+                  role="img"
+                  aria-label="Grafik Donut Kesehatan Stok SKU"
+                >
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r={donutRadius}
+                    fill="transparent"
+                    stroke="currentColor"
+                    strokeWidth="12"
+                    className="text-slate-200 dark:text-slate-700"
+                  />
+                  {stockHealth.amanPct > 0 && (
                     <circle
                       cx="50"
                       cy="50"
                       r={donutRadius}
                       fill="transparent"
-                      stroke="#10b981"
+                      stroke="#2e9468"
                       strokeWidth="12"
                       strokeDasharray={`${amanArc} ${donutCircumference}`}
                       strokeDashoffset={0}
                     />
+                  )}
+                  {stockHealth.menipisPct > 0 && (
                     <circle
                       cx="50"
                       cy="50"
                       r={donutRadius}
                       fill="transparent"
-                      stroke="#f59e0b"
+                      stroke="#cf950c"
                       strokeWidth="12"
                       strokeDasharray={`${menipisArc} ${donutCircumference}`}
                       strokeDashoffset={-amanArc}
                     />
+                  )}
+                  {stockHealth.habisPct > 0 && (
                     <circle
                       cx="50"
                       cy="50"
                       r={donutRadius}
                       fill="transparent"
-                      stroke="#e11d48"
+                      stroke="#b43328"
                       strokeWidth="12"
                       strokeDasharray={`${habisArc} ${donutCircumference}`}
                       strokeDashoffset={-(amanArc + menipisArc)}
                     />
-                  </>
-                )}
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                <span className="text-sm font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
-                  {stockHealth.amanPct}%
-                </span>
-                <span className="text-[10px] text-slate-500 dark:text-slate-400">Aman</span>
+                  )}
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                  <span className="text-sm font-bold font-mono text-slate-900 dark:text-slate-100">
+                    {stockHealth.amanPct}%
+                  </span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                    Aman
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex-1 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Stok Aman</span>
+                  </span>
+                  <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">
+                    {stockHealth.amanCount} SKU ({stockHealth.amanPct}%)
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <span>Stok Menipis</span>
+                  </span>
+                  <span className="font-mono font-semibold text-amber-600 dark:text-amber-400">
+                    {stockHealth.menipisCount} SKU ({stockHealth.menipisPct}%)
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                    <XCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                    <span>Stok Habis</span>
+                  </span>
+                  <span className="font-mono font-semibold text-rose-600 dark:text-rose-400">
+                    {stockHealth.habisCount} SKU ({stockHealth.habisPct}%)
+                  </span>
+                </div>
               </div>
             </div>
 
-            <div className="flex-1 space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-medium">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>Stok Aman</span>
-                </span>
-                <span className="font-mono font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
-                  {stockHealth.amanCount} SKU ({stockHealth.amanPct}%)
-                </span>
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                <span>Distribusi Unit per Kategori</span>
+                <span className="font-mono">Total: {metrics.totalUnits} Unit</span>
               </div>
 
-              <div className="flex items-center justify-between">
-                <span className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-medium">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                  <span>Stok Menipis</span>
-                </span>
-                <span className="font-mono font-semibold text-amber-700 dark:text-amber-400 tabular-nums">
-                  {stockHealth.menipisCount} SKU ({stockHealth.menipisPct}%)
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-300 font-medium">
-                  <XCircle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" />
-                  <span>Stok Habis</span>
-                </span>
-                <span className="font-mono font-semibold text-rose-700 dark:text-rose-400 tabular-nums">
-                  {stockHealth.habisCount} SKU ({stockHealth.habisPct}%)
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Grafik Batang Horizontal: Distribusi Unit Stok per Kategori */}
-          <div className="space-y-3 flex-1 flex flex-col justify-center">
-            <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
-              <span>Distribusi Unit per Kategori</span>
-              <span className="font-mono text-slate-500 dark:text-slate-400 tabular-nums">
-                Total: {metrics.totalUnits.toLocaleString('id-ID')} Unit
-              </span>
-            </div>
-
-            {categoryDistribution.length === 0 ? (
-              <p className="text-xs text-slate-500 dark:text-slate-400 py-4 text-center">
-                Belum ada data kategori barang untuk ditampilkan.
-              </p>
-            ) : (
-              <div className="space-y-2.5">
-                {categoryDistribution.slice(0, 5).map((cat, idx) => {
-                  const barColor =
-                    CATEGORY_BAR_COLORS[idx % CATEGORY_BAR_COLORS.length];
-                  return (
-                    <div key={cat.category} className="space-y-1">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-slate-800 dark:text-slate-200 truncate pr-2">
-                          {cat.category}{' '}
-                          <span className="text-slate-400 dark:text-slate-500 font-mono">
-                            ({cat.skuCount} SKU)
-                          </span>
+              <div className="space-y-2">
+                {categoryDistribution.map((cat) => (
+                  <div key={cat.category} className="space-y-1">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-medium text-slate-800 dark:text-slate-200 truncate">
+                        {cat.category}{' '}
+                        <span className="text-slate-400 font-mono">
+                          ({cat.skuCount} SKU)
                         </span>
-                        <span className="font-mono text-slate-700 dark:text-slate-300 font-semibold tabular-nums shrink-0">
-                          {cat.totalUnits.toLocaleString('id-ID')} unit · {cat.percentage}%
-                        </span>
-                      </div>
-                      <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                        <div
-                          style={{ width: `${Math.max(4, cat.percentage)}%` }}
-                          className={`h-full rounded-full transition-all duration-200 ${barColor}`}
-                        />
-                      </div>
+                      </span>
+                      <span className="font-mono text-slate-600 dark:text-slate-400">
+                        {cat.totalUnits} unit · {cat.percentage}%
+                      </span>
                     </div>
-                  );
-                })}
+                    <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div
+                        style={{ width: `${Math.max(4, cat.percentage)}%` }}
+                        className="h-full bg-indigo-600 rounded-full"
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Grid 2 Kolom: Daftar Stok Kritis/Menipis & 5 Aktivitas Transaksi Terakhir */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Kolom Kiri (5 cols): Peringatan Stok Kritis / Menipis */}
-        <section className="lg:col-span-5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+      {/* Tabel Laporan Performa Karyawan Gudang (Staff Performance Analytics) */}
+      <section
+        aria-label="Laporan Performa Karyawan Gudang"
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden"
+      >
+        <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 mt-0.5">
+              <Users className="w-4 h-4" />
+            </div>
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                Daftar Stok Kritis & Menipis
+                Laporan Performa Karyawan Gudang (Pick, Pack, Putaway & Opname)
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Barang yang memerlukan tindakan restock segera
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Evaluasi kecepatan pemrosesan pesanan, jumlah unit ditangani, dan akurasi pemindaian barcode
               </p>
             </div>
-            <Link
-              to="/inventory?status=MENIPIS"
-              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 inline-flex items-center gap-1 whitespace-nowrap"
-            >
-              <span>Semua SKU</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
           </div>
+          <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+            Target SLA Kecepatan: ≤ 4.5 menit / pesanan
+          </span>
+        </div>
 
-          {criticalItems.length === 0 ? (
-            <div className="p-8 text-center">
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                Seluruh Stok Berada di Level Aman
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Tidak ada SKU yang berada di bawah batas minimum stok saat ini.
-              </p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-200 dark:divide-slate-800">
-              {criticalItems.map((item) => {
-                const status = getStockStatus(item.stock, item.min_stock);
-                const isOut = status === 'HABIS';
-                return (
-                  <div
-                    key={item.id}
-                    className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex items-center justify-between gap-4"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-mono">
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">{item.sku}</span>
-                        <span aria-hidden="true">·</span>
-                        <span>{item.rack_location}</span>
-                        <span aria-hidden="true">·</span>
-                        <span
-                          className={`inline-flex items-center gap-1 font-sans font-semibold ${
-                            isOut
-                              ? 'text-rose-600 dark:text-rose-400'
-                              : 'text-amber-600 dark:text-amber-400'
-                          }`}
-                        >
-                          {isOut ? (
-                            <XCircle className="w-3.5 h-3.5" />
-                          ) : (
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                          )}
-                          {getStockStatusLabel(status)}
-                        </span>
-                      </div>
-                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate mt-1">
-                        {item.name}
-                      </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-mono tabular-nums">
-                        Sisa: <strong className="text-slate-900 dark:text-slate-100">{item.stock}</strong> {item.unit} / Min: {item.min_stock} {item.unit}
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate(`/transactions?item=${item.id}&type=INBOUND`)
-                      }
-                      className="px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-                    >
-                      Restock Cepat
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-
-        {/* Kolom Kanan (7 cols): 5 Aktivitas Transaksi Terakhir */}
-        <section className="lg:col-span-7 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                5 Aktivitas Transaksi Terakhir
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Mutasi barang masuk (Inbound) dan barang keluar (Outbound) terbaru
-              </p>
-            </div>
-            <Link
-              to="/transactions"
-              className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 inline-flex items-center gap-1 whitespace-nowrap"
-            >
-              <span>Riwayat Lengkap</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          {recentTransactions.length === 0 ? (
-            <div className="p-8 text-center">
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                Belum Ada Aktivitas Transaksi
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 mb-4">
-                Catat penerimaan atau pengeluaran barang pertama Anda.
-              </p>
-              <Link
-                to="/transactions"
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Buat Transaksi Pertama</span>
-              </Link>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-200 dark:divide-slate-800">
-              {recentTransactions.map((tx) => {
-                const isInbound = tx.type === 'INBOUND';
-                return (
-                  <div
-                    key={tx.id}
-                    className="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                  >
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div
-                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
-                          isInbound
-                            ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400'
-                            : 'bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400'
-                        }`}
-                      >
-                        {isInbound ? (
-                          <ArrowDownLeft className="w-4 h-4" />
-                        ) : (
-                          <ArrowUpRight className="w-4 h-4" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 font-mono flex-wrap">
-                          <span className="font-semibold text-slate-800 dark:text-slate-200">
-                            {tx.reference_no}
-                          </span>
-                          <span aria-hidden="true">·</span>
-                          <span>{tx.sku}</span>
-                          <span aria-hidden="true">·</span>
-                          <span className="font-sans">{formatDateTime(tx.created_at)}</span>
-                        </div>
-                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate mt-0.5">
-                          {tx.item_name}
-                        </p>
-                        {tx.partner_name && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                            Mitra: {tx.partner_name}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="sm:text-right pl-11 sm:pl-0 shrink-0 font-mono tabular-nums">
-                      <div
-                        className={`text-sm font-bold ${
-                          isInbound
-                            ? 'text-emerald-600 dark:text-emerald-400'
-                            : 'text-amber-600 dark:text-amber-400'
-                        }`}
-                      >
-                        {isInbound ? `+${tx.quantity}` : `-${tx.quantity}`}
-                      </div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">
-                        Stok: {tx.stock_before} → {tx.stock_after}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/50 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                <th className="py-3 px-4">Nama Staf Gudang</th>
+                <th className="py-3 px-4">Peran Operasional</th>
+                <th className="py-3 px-4">Zona / Area Tugasan</th>
+                <th className="py-3 px-4 text-right">Pesanan Selesai</th>
+                <th className="py-3 px-4 text-right">Unit Diproses</th>
+                <th className="py-3 px-4 text-right">Rata-rata Waktu</th>
+                <th className="py-3 px-4 text-right">Akurasi Scan</th>
+                <th className="py-3 px-4">Status Shift</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-sm">
+              {staffMetrics.map((stf) => (
+                <tr
+                  key={stf.staff_id}
+                  className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                >
+                  <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                    {stf.staff_name}
+                  </td>
+                  <td className="py-3 px-4 text-xs text-indigo-700 dark:text-indigo-300 font-medium whitespace-nowrap">
+                    {stf.role}
+                  </td>
+                  <td className="py-3 px-4 text-xs font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                    {stf.assigned_zone}
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums whitespace-nowrap">
+                    {stf.orders_completed}
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono text-slate-700 dark:text-slate-300 tabular-nums whitespace-nowrap">
+                    {stf.items_processed.toLocaleString('id-ID')} unit
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono tabular-nums whitespace-nowrap">
+                    <span className="inline-flex items-center justify-end gap-1 text-emerald-700 dark:text-emerald-400 font-semibold">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>{stf.avg_pick_pack_minutes.toFixed(1)} mnt</span>
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-right font-mono font-bold text-emerald-700 dark:text-emerald-400 tabular-nums whitespace-nowrap">
+                    {stf.accuracy_rate.toFixed(1)}%
+                  </td>
+                  <td className="py-3 px-4 text-xs font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                    {stf.active_status}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 };
