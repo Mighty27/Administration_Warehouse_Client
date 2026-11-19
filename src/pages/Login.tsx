@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Lock, Mail, ArrowRight, AlertCircle, Building2 } from 'lucide-react';
+import { Lock, Mail, ArrowRight, AlertCircle } from 'lucide-react';
 import { useWarehouse } from '../context/WarehouseContext';
 import { AuthShell } from '../components/AuthShell';
 
 export const Login: React.FC = () => {
-  const { user, signIn, loginDemoAccount } = useWarehouse();
+  const { user, signIn } = useWarehouse();
   const navigate = useNavigate();
   const location = useLocation();
   const fromPath = (location.state as { from?: string })?.from || '/';
@@ -33,11 +33,6 @@ export const Login: React.FC = () => {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleDemoLogin = async (demoEmail: string) => {
-    await loginDemoAccount(demoEmail);
-    navigate(fromPath, { replace: true });
   };
 
   return (
@@ -120,42 +115,6 @@ export const Login: React.FC = () => {
           <ArrowRight className="w-4 h-4" />
         </button>
       </form>
-
-      {/* Switch Demo Account Instan (Multi-Account RLS Isolation) */}
-      <div className="mt-6 pt-5 border-t border-slate-200 dark:border-slate-800">
-        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-2.5">
-          Akses Cepat Akun Demo Gudang (Uji Isolasi Data RLS):
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          <button
-            type="button"
-            onClick={() => handleDemoLogin('budi.gudang@logivault.id')}
-            className="text-left p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-indigo-500 transition-colors cursor-pointer"
-          >
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-slate-100">
-              <Building2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-              <span className="truncate">Hub Cikarang Blok A</span>
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-              Budi Santoso · 8 SKU & 6 Order
-            </p>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleDemoLogin('siti.logistik@logivault.id')}
-            className="text-left p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-indigo-500 transition-colors cursor-pointer"
-          >
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 dark:text-slate-100">
-              <Building2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span className="truncate">Depo Surabaya Timur</span>
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 truncate">
-              Siti Rahmawati · 2 SKU & 1 Order
-            </p>
-          </button>
-        </div>
-      </div>
     </AuthShell>
   );
 };
